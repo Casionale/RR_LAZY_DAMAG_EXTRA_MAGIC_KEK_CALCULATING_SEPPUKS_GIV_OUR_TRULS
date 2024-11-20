@@ -1,0 +1,10 @@
+{
+  "cookies_file_uri": "C:\Users\Admin\AppData\Roaming\Mozilla\Firefox\Profiles\9zr30oq8.default-release\cookies.sqlite",
+  "session_file_uri": "C:\Users\Admin\AppData\Roaming\Mozilla\Firefox\Profiles\9zr30oq8.default-release\sessionstore-backups\previous.jsonlz4",
+  "client": "",
+  "rr": "",
+  "rr_add": "",
+  "rr_f": "",
+  "rr_id": "",
+  "PHPSESSID": ""
+}

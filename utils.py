@@ -95,25 +95,49 @@ class Bot:
         return damages
 
     def get_damage_members(self, url):
-        scraper = cloudscraper.create_scraper()
-        response = scraper.get(url, cookies=self.cookies, timeout=10)
-        strip_response = response.text.replace('\n', '')
-        if response.text == '':
-            raise Exception
-        # print(response.text)
-        # print(strip_response)
-        gmg = [x.group() for x in re.finditer(pattern=r'<tr(.|\n)*?</tr>', string=strip_response)]
-        damages = []
+
+        is_error = True
+        while is_error:
+            scraper = cloudscraper.create_scraper()
+            response = scraper.get(url, cookies=self.cookies, timeout=30)
+            strip_response = response.text.replace('\n', '')
+            if response.text == '':
+                raise Exception
+            # print(response.text)
+            # print(strip_response)
+            gmg = [x.group() for x in re.finditer(pattern=r'<tr(.|\n)*?</tr>', string=strip_response)]
+            damages = []
+
+            if len(gmg) > 0:
+                is_error = False
+            else:
+                print('Попытка с пустым уроном')
+
         for g in gmg:
             if 'user' in g:
                 # damages.append(g)
+
+
                 soup = BeautifulSoup(g, 'html.parser')
-                individual_damage = {
-                    "name": soup.find_all('td', {'class': 'list_name pointer'})[0].text.strip(),
-                    "lvl": soup.find_all('span', {'class': 'yellow'})[0].text.strip(),
-                    "damage": soup.find_all('span', {'class': 'yellow'})[1].text.strip().replace('.', ''),
-                    'id': soup.find('tr').attrs['user']
-                }
+                try:
+                    dbg = soup.find_all('span', {'class': 'yellow'})
+                    if len(dbg) > 0:
+                        lvl = soup.find_all('span', {'class': 'yellow'})[0].text.strip()
+                    else:
+                        lvl = soup.find_all('td', {'class': 'yellow list_level'})[0].text.strip()
+                    individual_damage = {
+                        "name": soup.find_all('td', {'class': 'list_name pointer'})[0].text.strip(),
+                        "lvl": lvl,
+                        #"lvl": soup.find_all('span', {'class': 'yellow'})[0].text.strip(),
+                        #"lvl": soup.find_all('td', {'class': 'yellow list_level'})[0].text.strip(),
+                        "damage": soup.find_all('span', {'class': 'yellow'})[1].text.strip().replace('.', ''),
+                        'id': soup.find('tr').attrs['user']
+                    }
+                except Exception as e:
+                    f = open('3.txt', 'w', encoding='utf-8')
+                    f.write(g)
+                    f.close()
+
                 damages.append(individual_damage)
         return damages
 
@@ -143,10 +167,15 @@ class Bot:
         return partys
 
     def get_list_damage_from_war_party_members(self, id, is_attack, id_party):
-        url = f'https://rivalregions.com/war/damageparties/{id}/{0 if is_attack == True else 1}/{id_party}?c={self.client}'
-        damages = self.get_damage_members(url)
-        if type(damages) is not list or len(damages) == 0:
-            raise Exception
+        is_error = True
+        while is_error:
+            url = f'https://rivalregions.com/war/damageparties/{id}/{0 if is_attack == True else 1}/{id_party}?c={self.client}'
+            damages = self.get_damage_members(url)
+            if type(damages) is not list or len(damages) == 0:
+                is_error = True
+                print('Пустой дамаг :с')
+            else:
+                is_error = False
         return damages
 
     def get_damage(self, url):

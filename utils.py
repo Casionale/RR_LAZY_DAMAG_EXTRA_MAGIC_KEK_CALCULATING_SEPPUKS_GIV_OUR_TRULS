@@ -3,6 +3,7 @@ import threading
 import time
 from asyncio import timeout
 from datetime import datetime
+from idlelib.iomenu import encoding
 
 import cloudscraper
 from bs4 import BeautifulSoup
@@ -256,6 +257,7 @@ class Utils:
     def calculate_truls_for_war(damage, id_war, price, stop_time, name = ''):
         damage = damage[0]
         sum = 0
+        sum_damage = 0
         no_pay_sum = 0
         str_check = f'{name:^50}\n'
         stop_time = int(datetime.datetime.strptime(stop_time, "%H:%M %d.%m.%Y").timestamp())
@@ -264,6 +266,7 @@ class Utils:
                 if int(dmg['id_war']) == id_war:
                     add_sum = int(dmg['damage']) * price
                     sum += add_sum
+                    sum_damage += int(dmg['damage'])
                     str_check += f'{dmg["time"]} {dmg['damage']}  * {price} = {add_sum}\n'
             else:
                 if int(dmg['id_war']) == id_war:
@@ -271,7 +274,7 @@ class Utils:
 
         str_check += f'ИТОГО: {sum} | Не оплачиваемая сумма {no_pay_sum}\n\n'
 
-        return {'sum': sum, 'log': str_check}
+        return {'sum': sum, 'log': str_check, 'damage':sum_damage}
 
     @staticmethod
     def sums_per_member_from_wars(bot, ids, is_attacks, prices, id_party):
@@ -351,6 +354,8 @@ class Utils:
 
             sum = 0
 
+            csv_file_data = ''
+
             for member in un_unic_damage:
                 result = Utils.calculate_truls_for_war(un_unic_damage[member], ids[i], prices[i], stop_at[i], member)
                 #results.append(f'{member["name"]:<30}: {result["sum"]:<15} Rivals')
@@ -360,7 +365,15 @@ class Utils:
 
                 logs.append(result['log'])
                 sum += result['sum']
+
+                csv_file_data += f'{m};{result['damage']};\n'
+
             results.append(f'ИТОГО: {sum} Rivals\n')
+
+            f = open(f'Война {ids[i]}.csv', 'w', encoding='utf-8')
+            f.write(csv_file_data)
+            f.close()
+            f.close()
 
         f = open('Money.txt', 'w', encoding='utf-8')
         for r in results:

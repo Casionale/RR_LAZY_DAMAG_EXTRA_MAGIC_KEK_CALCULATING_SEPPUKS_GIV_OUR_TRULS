@@ -69,7 +69,7 @@ def kek_calculating(is_simple = False):
 				# raise Exception
 				pass
 			is_error = False
-		except:
+		except Exception as e:
 			print('Новая попытка посчитать')
 
 	is_error = True

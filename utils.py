@@ -1,4 +1,5 @@
 import json
+import sqlite3
 import threading
 import time
 from asyncio import timeout
@@ -11,6 +12,13 @@ import datetime
 
 import re
 
+from mozDecompress import mozlz4_to_text
+
+# Куки сессии
+cookies = {}
+
+url_main = 'https://rivalregions.com/#overview'
+client = ''
 
 class Bot:
 
@@ -19,7 +27,7 @@ class Bot:
         self.client = client
 
     def get_data_main(self, url):
-        scraper = cloudscraper.create_scraper()
+        scraper = cloudscraper.create_scraper(browser='firefox')
         response = scraper.get('https://rivalregions.com/#overview', cookies=self.cookies)
 
         if 'Sign in with Google' in response.text:
@@ -38,9 +46,12 @@ class Bot:
             "gold": soup.find(id="g").text.strip()
         }
 
-        time_string = str(soup.find_all('div', {'class': 'tip header_slide float_left hov pointer'})[0])
-        time_string = re.search(r"\d\d:\d\d", time_string)
-        time_string = time_string.group(0)
+        try:
+            time_string = str(soup.find_all('div', {'class': 'tip header_slide float_left hov pointer'})[0])
+            time_string = re.search(r"\d\d:\d\d", time_string)
+            time_string = time_string.group(0)
+        except:
+            time_string = 'Полная энергия'
         #print(time_string)
 
         response = scraper.get(f'https://rivalregions.com/main/get_hp?c={self.cookies['rr']}', cookies=self.cookies)
@@ -99,8 +110,9 @@ class Bot:
 
         is_error = True
         while is_error:
-            scraper = cloudscraper.create_scraper()
-            response = scraper.get(url, cookies=self.cookies, timeout=30)
+            scraper = cloudscraper.create_scraper(browser='firefox')
+            response = scraper.get(url, cookies=self.cookies, timeout=100)
+
             strip_response = response.text.replace('\n', '')
             if response.text == '':
                 raise Exception
@@ -112,7 +124,7 @@ class Bot:
             if len(gmg) > 0:
                 is_error = False
             else:
-                print('Попытка с пустым уроном')
+                print('Попытка с пустым уроном, правильный ли ID битвы?')
 
         for g in gmg:
             if 'user' in g:
@@ -251,6 +263,8 @@ $(document).ready(function() {
                 return []
         return damage
 
+
+
 class Utils:
 
     @staticmethod
@@ -268,6 +282,9 @@ class Utils:
                     sum += add_sum
                     sum_damage += int(dmg['damage'])
                     str_check += f'{dmg["time"]} {dmg['damage']}  * {price} = {add_sum}\n'
+
+                    if add_sum == 0:
+                        pass
             else:
                 if int(dmg['id_war']) == id_war:
                     no_pay_sum += int(dmg['damage']) * price
@@ -387,9 +404,116 @@ class Utils:
 
         print('Готово! Рассмотри файлы Money.txt и ResultLogs.txt')
 
+    @staticmethod
+    def get_cookies(settings):
+
+        def get_cookie_from_firefox(cookies_file_uri, session_file_uri):
+            connection = sqlite3.connect(cookies_file_uri)
+
+            cursor = connection.cursor()
+            cursor.execute('''
+    	SELECT name, value FROM moz_cookies WHERE (name = ? OR name = ? OR name = ? OR name = ? OR name = ?) AND host = ?
+    	''', ('rr', 'rr_add', 'rr_f', 'rr_id', 'PHPSESSID', 'rivalregions.com'))
+            results = cursor.fetchall()
+
+            connection.close()
+
+            cookies = {}
+
+            for row in results:
+                cookies[row[0]] = row[1]
+
+            session_cookies = mozlz4_to_text(session_file_uri)
+            txt = session_cookies.decode('utf-8')
+            session_cookies = json.loads(txt)
+            session_cookies = session_cookies['cookies']
+            cookies['PHPSESSID'] = ''
+
+            for cookie in session_cookies:
+                if cookie['host'] == 'rivalregions.com' and cookie['name'] == 'PHPSESSID':
+                    cookies['PHPSESSID'] = cookie['value']
+
+            return cookies
+
+        cookies_file_uri = settings['cookies_file_uri']
+        session_file_uri = settings['session_file_uri']
+        return get_cookie_from_firefox(cookies_file_uri, session_file_uri)
+
+    def get_manual_cookies(settings):
+
+        return  {
+            'PHPSESSID': settings['PHPSESSID'],
+            'rr': settings['rr'],
+            'rr_add': settings['rr_add'],
+            'rr_f': settings['rr_f'],
+            'rr_id': settings['rr_id'],
+        }
+
+    @staticmethod
+    def kek_calculating(data, cookies, is_simple=False):
+        is_error = True
+        while is_error:
+            try:
+                bot = Bot(cookies=cookies, client=client)
+                data_main = bot.get_data_main(url=url_main)
+                print(data_main)
+                if data_main == 'Сессия устарела!' or 'Пустой ответ':
+                    # raise Exception
+                    pass
+                is_error = False
+            except Exception as e:
+                print('Новая попытка посчитать')
+                f = open('ERROR новая попытка.txt')
+                f.write(e)
+                f.close()
+
+        is_error = True
+        while is_error:
+            print('Начинаю смотреть шо там по урону')
 
 
+            ids = []
+            is_attacks = []
+            prices = []
+            id_party = 0
+            stop_at = []
 
+            for b in data['table_data']:
+                ids.append(b[0])
+                is_attacks.append(b[1])
+                prices.append(b[2])
+                id_party = b[3]
+                stop_at.append(b[4])
+
+            try:
+                if is_simple:
+                    print(Utils.sums_per_member_from_wars(Bot(cookies=cookies, client=client), ids, is_attacks, prices,
+                                                          id_party))
+                else:
+                    print(Utils.sums_per_member_from_wars_witch_stop_word(Bot(cookies=cookies, client=client), ids,
+                                                                          is_attacks,
+                                                                          prices, id_party, stop_at))
+                is_error = False
+            except Exception as e:
+                print('Новая попытка', e)
+
+    @staticmethod
+    def old_main(data):
+        global client
+
+        is_firefox_cookies = data['use_browser']
+
+        if is_firefox_cookies:
+            print('Извращенец ~(˘▾˘~)')
+
+        client = data['client']
+
+        if is_firefox_cookies:
+            cookies = Utils.get_cookies(data)
+        else:
+            cookies = Utils.get_manual_cookies(data)
+
+        Utils.kek_calculating(data, cookies, False)
 
 
 

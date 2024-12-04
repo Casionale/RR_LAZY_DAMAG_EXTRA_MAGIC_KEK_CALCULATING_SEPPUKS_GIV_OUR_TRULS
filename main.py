@@ -75,11 +75,6 @@ def kek_calculating(is_simple = False):
 	is_error = True
 	while is_error:
 		print('Начинаю смотреть шо там по урону')
-		ids = [633662, 633657]
-		is_attacks = [True, False]
-		prices = [6000, 9000]
-		id_party = 140
-		stop_at = ['23:59 18.11.2024', '23:59 18.11.2024']
 
 		f = open('BATTLES.txt', 'r', encoding='utf-8')
 		battles_txt = f.read()

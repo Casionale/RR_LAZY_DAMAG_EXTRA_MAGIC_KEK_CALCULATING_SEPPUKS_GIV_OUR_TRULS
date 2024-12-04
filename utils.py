@@ -25,6 +25,7 @@ class Bot:
     def __init__(self, cookies, client):
         self.cookies = cookies
         self.client = client
+        self.timeout = 1
 
     def get_data_main(self, url):
         scraper = cloudscraper.create_scraper(browser='firefox')
@@ -54,7 +55,10 @@ class Bot:
             time_string = 'Полная энергия'
         #print(time_string)
 
+        time.sleep(self.timeout)
+        Utils.log(f'Жду {self.timeout} сек')
         response = scraper.get(f'https://rivalregions.com/main/get_hp?c={self.cookies['rr']}', cookies=self.cookies)
+        Utils.log(f'Запрос на https://rivalregions.com/main/get_hp?c={self.cookies['rr']}')
 
         data_energy = json.loads(response.text)
 
@@ -78,7 +82,11 @@ class Bot:
         while True:
             try:
                 # Отправляем GET запрос на главную страницу
+                time.sleep(self.timeout)
+                Utils.log(f'Жду {self.timeout} сек')
                 response = scraper.get('https://rivalregions.com/#overview', cookies=self.cookies)
+                Utils.log(f'Запрос на https://rivalregions.com/#overview')
+
                 if response.status_code == 200:
                     if 'Sign in with Google' not in response.text and response.text != '':
                         print('Сессия обновлена успешно')
@@ -102,19 +110,26 @@ class Bot:
         print('Поток alive запущен')
 
     def get_list_damage_from_war(self, id, is_attack):
+        time.sleep(self.timeout)
+        Utils.log(f'Жду {self.timeout} сек')
         url = f"https://rivalregions.com/war/damage/{id}/{0 if is_attack == True else 1}?c={self.client}"
         damages = self.get_damage_members(url)
+
         return damages
 
     def get_damage_members(self, url):
 
         is_error = True
         while is_error:
+            time.sleep(self.timeout)
+            Utils.log(f'Жду {self.timeout} сек')
             scraper = cloudscraper.create_scraper(browser='firefox')
-            response = scraper.get(url, cookies=self.cookies, timeout=100)
+            response = scraper.get(url, cookies=self.cookies, timeout=4000)
+            Utils.log(f'Запрос на {url}')
 
             strip_response = response.text.replace('\n', '')
             if response.text == '':
+                Utils.log(f'Пустой ответ на {url}')
                 raise Exception
             # print(response.text)
             # print(strip_response)
@@ -124,7 +139,8 @@ class Bot:
             if len(gmg) > 0:
                 is_error = False
             else:
-                print('Попытка с пустым уроном, правильный ли ID битвы?')
+                print('Попытка с пустым уроном, правильный ли ID битвы? Или не везёт слишком')
+                Utils.log(f'Попытка с пустым уроном, правильный ли ID битвы?')
 
         for g in gmg:
             if 'user' in g:
@@ -138,15 +154,23 @@ class Bot:
                         lvl = soup.find_all('span', {'class': 'yellow'})[0].text.strip()
                     else:
                         lvl = soup.find_all('td', {'class': 'yellow list_level'})[0].text.strip()
+
+                    nme = soup.find_all('td', {'class': 'list_name pointer'})
+                    if len(nme) > 0:
+                        name = soup.find_all('td', {'class': 'list_name pointer'})[0].text.strip()
+                    else:
+                        name = soup.find_all('td', {'class': 'list_name pointer tip green'})[0].text.strip()
+
                     individual_damage = {
-                        "name": soup.find_all('td', {'class': 'list_name pointer'})[0].text.strip(),
+                        "name": name,
                         "lvl": lvl,
                         #"lvl": soup.find_all('span', {'class': 'yellow'})[0].text.strip(),
                         #"lvl": soup.find_all('td', {'class': 'yellow list_level'})[0].text.strip(),
-                        "damage": soup.find_all('span', {'class': 'yellow'})[1].text.strip().replace('.', ''),
+                        "damage": dbg[1].contents[0].strip().replace('.', ''),
                         'id': soup.find('tr').attrs['user']
                     }
                 except Exception as e:
+                    Utils.log(f'Исключение {e}')
                     f = open('3.txt', 'w', encoding='utf-8')
                     f.write(g)
                     f.close()
@@ -155,9 +179,12 @@ class Bot:
         return damages
 
     def get_list_damage_from_war_partys(self, id):
+        time.sleep(self.timeout)
+        Utils.log(f'Жду {self.timeout} сек')
         url = f'https://rivalregions.com/listed/partydamage/{id}?c={self.client}'
         scraper = cloudscraper.create_scraper()
         response = scraper.get(url, cookies=self.cookies)
+        Utils.log(f'Запрос на {url}')
         strip_response = response.text.replace('\n','')
         print(strip_response)
 
@@ -182,11 +209,13 @@ class Bot:
     def get_list_damage_from_war_party_members(self, id, is_attack, id_party):
         is_error = True
         while is_error:
-            url = f'https://rivalregions.com/war/damageparties/{id}/{0 if is_attack == True else 1}/{id_party}?c={self.client}'
+            is_attack = 0 if is_attack == 'True' else 1
+            url = f'https://rivalregions.com/war/damageparties/{id}/{is_attack}/{id_party}?c={self.client}'
             damages = self.get_damage_members(url)
             if type(damages) is not list or len(damages) == 0:
                 is_error = True
                 print('Пустой дамаг :с')
+                Utils.log(f'Пустой дамаг')
             else:
                 is_error = False
         return damages
@@ -194,8 +223,11 @@ class Bot:
     def get_damage(self, url):
         is_error = True
         while is_error:
+            time.sleep(self.timeout)
+            Utils.log(f'Жду {self.timeout} сек')
             scraper = cloudscraper.create_scraper()
             response = scraper.get(url, cookies=self.cookies, timeout=40)
+            Utils.log(f'Запрос на {url}')
 
             if '''<script>
 $(document).ready(function() {
@@ -260,13 +292,13 @@ $(document).ready(function() {
                 })
 
             except Exception as e:
+                Utils.log(f'Исключение {e}')
                 return []
         return damage
 
 
 
 class Utils:
-
     @staticmethod
     def calculate_truls_for_war(damage, id_war, price, stop_time, name = ''):
         damage = damage[0]
@@ -327,6 +359,8 @@ class Utils:
         results = []
         logs = []
 
+        un_unic_damage = {}
+
         for i in range(len(ids)):
             date_time_obj = datetime.datetime.strptime(stop_at[i], '%H:%M %d.%m.%Y')
 
@@ -338,7 +372,7 @@ class Utils:
                 except Exception as e:
                     pass
 
-            un_unic_damage = {}
+
 
             for member in damage_members:
                 if member['name'] not in un_unic_damage:
@@ -365,7 +399,8 @@ class Utils:
                         un_unic_damage[member['name']].extend(attacks)
                     else:
                         un_unic_damage[member['name']] = [attacks]
-                print(f'Законечен {member['name']}')
+                print(f'Законечена загрузка урона {member['name']}')
+                Utils.log(f'Законечена загрузка урона {member['name']}')
 
             results.append(f'Война {ids[i]}')
 
@@ -375,15 +410,16 @@ class Utils:
 
             for member in un_unic_damage:
                 result = Utils.calculate_truls_for_war(un_unic_damage[member], ids[i], prices[i], stop_at[i], member)
-                #results.append(f'{member["name"]:<30}: {result["sum"]:<15} Rivals')
-                m = member
-                r = result['sum']
-                results.append(f'{m:<40}: {str(r):<15} Rivals')
+                if result['damage'] > 0:
+                    #results.append(f'{member["name"]:<30}: {result["sum"]:<15} Rivals')
+                    m = member
+                    r = result['sum']
+                    results.append(f'{m:<40}: {str(r):<15} Rivals')
 
-                logs.append(result['log'])
-                sum += result['sum']
+                    logs.append(result['log'])
+                    sum += result['sum']
 
-                csv_file_data += f'{m};{result['damage']};\n'
+                    csv_file_data += f'{m};{result['damage']};\n'
 
             results.append(f'ИТОГО: {sum} Rivals\n')
 
@@ -459,13 +495,12 @@ class Utils:
                 print(data_main)
                 if data_main == 'Сессия устарела!' or 'Пустой ответ':
                     # raise Exception
+                    Utils.log(f'Сессия устарела или пустой ответ')
                     pass
                 is_error = False
             except Exception as e:
+                Utils.log(f'Исключение {e}')
                 print('Новая попытка посчитать')
-                f = open('ERROR новая попытка.txt')
-                f.write(e)
-                f.close()
 
         is_error = True
         while is_error:
@@ -499,24 +534,31 @@ class Utils:
 
     @staticmethod
     def old_main(data):
-        global client
+        try:
+            global client
 
-        is_firefox_cookies = data['use_browser']
+            is_firefox_cookies = data['use_browser']
 
-        if is_firefox_cookies:
-            print('Извращенец ~(˘▾˘~)')
+            if is_firefox_cookies:
+                print('Извращенец ~(˘▾˘~)')
 
-        client = data['client']
+            client = data['client']
 
-        if is_firefox_cookies:
-            cookies = Utils.get_cookies(data)
-        else:
-            cookies = Utils.get_manual_cookies(data)
+            if is_firefox_cookies:
+                cookies = Utils.get_cookies(data)
+            else:
+                cookies = Utils.get_manual_cookies(data)
 
-        Utils.kek_calculating(data, cookies, False)
+            Utils.kek_calculating(data, cookies, False)
+        except Exception as e:
+            Utils.log(f'Исплючение {e}')
 
-
-
+    @staticmethod
+    def log(message):
+        f = open('log.txt', 'a+', encoding='utf-8')
+        current_datetime = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        f.write(f'{current_datetime} : {message}\n')
+        f.close()
 
 
 

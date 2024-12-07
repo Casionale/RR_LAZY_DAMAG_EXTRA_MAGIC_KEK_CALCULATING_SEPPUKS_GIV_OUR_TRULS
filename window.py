@@ -88,6 +88,8 @@ def add_row():
                     value1_entry.get(),
                     value2_entry.get(),
                     f"{time_entry.get()} {calendar.get()}",
+                    limit_entry.get(),
+                    "True" if limit_bool_var.get() else "False",
                 ),
             )
             row_window.destroy()
@@ -124,8 +126,17 @@ def add_row():
     time_entry.insert(0, "00:00")
     time_entry.grid(row=5, column=1, padx=5)
 
+    tk.Label(row_window, text="Лимит").grid(row=6, column=0, pady=5, padx=5, sticky="w")
+    limit_entry = tk.Entry(row_window)
+    limit_entry.grid(row=6, column=1, padx=5)
+
+    tk.Label(row_window, text="Лимит?").grid(row=7, column=0, pady=5, padx=5, sticky="w")
+    limit_bool_var = tk.BooleanVar()
+    limit_bool_checkbox = tk.Checkbutton(row_window, variable=limit_bool_var)
+    limit_bool_checkbox.grid(row=7, column=1, sticky="w", padx=5)
+
     save_button = tk.Button(row_window, text="Сохранить", command=save_row)
-    save_button.grid(row=6, column=0, columnspan=2, pady=10)
+    save_button.grid(row=8, column=0, columnspan=2, pady=10)
 
 
 def start_script():
@@ -146,7 +157,7 @@ def start_script():
         ],
     }
 
-    worker = threading.Thread(target=Utils.old_main, args=(data,))
+    worker = threading.Thread(target=Utils.old_main, daemon=True, args=(data,))
     worker.start()
 
     #Utils.old_main(data)
@@ -207,7 +218,7 @@ tk.Checkbutton(root, text="Использовать FurryFox ~(˘▾˘~)", varia
 frame_table = tk.Frame(root)
 frame_table.pack(padx=10, pady=5, fill=tk.BOTH, expand=True)
 
-columns = ("ID битвы:", "Атака?", "Цена:", "ID партии:", "Стоп слово в")
+columns = ("ID битвы:", "Атака?", "Цена:", "ID партии:", "Стоп слово в", "Лимит", "Лимит?")
 table = ttk.Treeview(frame_table, columns=columns, show="headings", height=10)
 
 for col in columns:

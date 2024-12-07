@@ -141,6 +141,7 @@ class Bot:
             else:
                 print('Попытка с пустым уроном, правильный ли ID битвы? Или не везёт слишком')
                 Utils.log(f'Попытка с пустым уроном, правильный ли ID битвы?')
+                time.sleep(2)
 
         for g in gmg:
             if 'user' in g:
@@ -299,6 +300,57 @@ $(document).ready(function() {
 
 
 class Utils:
+
+
+    @staticmethod
+    def get_all_attack_sorted_by_stamp(un_unic_damage):
+        all_attack = []
+        for member in un_unic_damage:
+            for dmg in un_unic_damage[member][0]:
+                n_dmg = dmg
+                n_dmg['owner'] = member
+
+                all_attack.append(n_dmg)
+        all_attack = sorted(all_attack, key=lambda d: d['stamp'])
+        return all_attack
+    @staticmethod
+    def get_stop_at_by_limit(all_damage_sorted_by_stamp, limit, id):
+        attacks = []
+        current = 0
+        war_attack = [damage for damage in all_damage_sorted_by_stamp if int(damage['id_war']) == id]
+        for attack in war_attack:
+            dmg = int(attack['damage'])
+            if (current + dmg) < (limit + dmg):
+                current += dmg
+                attacks.append(attack)
+
+        timestamp_limit = attacks[-1]['stamp']
+        return timestamp_limit
+
+
+
+
+    @staticmethod
+    def parse_number(string):
+        suffixes = {
+            'k': 10 ** 3,
+            'kk': 10 ** 6,
+            'kkk': 10 ** 9,
+            'kkkk': 10**12,
+        }
+
+        string = string.strip().lower()
+
+        for suffix, multiplier in sorted(suffixes.items(), key=lambda x: -len(x[0])):
+            if string.endswith(suffix):
+                number = float(string[:-len(suffix)])
+                return int(number * multiplier)
+
+        try:
+            return int(string)
+        except ValueError:
+            raise ValueError(f"Некорректный формат строки: {string}")
+
     @staticmethod
     def calculate_truls_for_war(damage, id_war, price, stop_time, name = ''):
         damage = damage[0]
@@ -306,9 +358,10 @@ class Utils:
         sum_damage = 0
         no_pay_sum = 0
         str_check = f'{name:^50}\n'
-        stop_time = int(datetime.datetime.strptime(stop_time, "%H:%M %d.%m.%Y").timestamp())
+        if type(stop_time) != int:
+            stop_time = int(datetime.datetime.strptime(stop_time, "%H:%M %d.%m.%Y").timestamp())
         for dmg in damage:
-            if dmg['stamp'] < stop_time:
+            if dmg['stamp'] <= stop_time:
                 if int(dmg['id_war']) == id_war:
                     add_sum = int(dmg['damage']) * price
                     sum += add_sum
@@ -323,7 +376,7 @@ class Utils:
 
         str_check += f'ИТОГО: {sum} | Не оплачиваемая сумма {no_pay_sum}\n\n'
 
-        return {'sum': sum, 'log': str_check, 'damage':sum_damage}
+        return {'sum': sum, 'log': str_check, 'damage':sum_damage, 'no_pay': no_pay_sum}
 
     @staticmethod
     def sums_per_member_from_wars(bot, ids, is_attacks, prices, id_party):
@@ -353,7 +406,7 @@ class Utils:
         return str_ret
 
     @staticmethod
-    def sums_per_member_from_wars_witch_stop_word(bot, ids, is_attacks, prices, id_party, stop_at):
+    def sums_per_member_from_wars_witch_stop_word(bot, ids, is_attacks, prices, id_party, stop_at, limit, is_limit):
         members = {}
         un_unic_damage = {}
         results = []
@@ -407,6 +460,16 @@ class Utils:
             sum = 0
 
             csv_file_data = ''
+            no_pay_data = ''
+
+            all_damage_sorted_by_stamp = Utils.get_all_attack_sorted_by_stamp(un_unic_damage)
+
+            #Если по лимиту
+            if is_limit[i] == 'True':
+                new_stop_at = Utils.get_stop_at_by_limit(all_damage_sorted_by_stamp, limit[i], ids[i])
+                stop_at[i] = new_stop_at
+
+            #ТУТ ВСЁ УЖЕ ДОЛЖНО БЫТЬ ИЗВЕСТНО!
 
             for member in un_unic_damage:
                 result = Utils.calculate_truls_for_war(un_unic_damage[member], ids[i], prices[i], stop_at[i], member)
@@ -420,12 +483,16 @@ class Utils:
                     sum += result['sum']
 
                     csv_file_data += f'{m};{result['damage']};\n'
+                    no_pay_data += f'{m:<40}: {result["no_pay"]}\n'
 
             results.append(f'ИТОГО: {sum} Rivals\n')
 
             f = open(f'Война {ids[i]}.csv', 'w', encoding='utf-8')
             f.write(csv_file_data)
             f.close()
+
+            f = open(f'Неоплаченное {ids[i]}.txt', 'w', encoding='utf-8')
+            f.write(no_pay_data)
             f.close()
 
         f = open('Money.txt', 'w', encoding='utf-8')
@@ -512,6 +579,8 @@ class Utils:
             prices = []
             id_party = 0
             stop_at = []
+            limit = []
+            is_limit = []
 
             for b in data['table_data']:
                 ids.append(b[0])
@@ -519,15 +588,17 @@ class Utils:
                 prices.append(b[2])
                 id_party = b[3]
                 stop_at.append(b[4])
+                limit.append(b[5])
+                is_limit.append(b[6])
 
             try:
                 if is_simple:
                     print(Utils.sums_per_member_from_wars(Bot(cookies=cookies, client=client), ids, is_attacks, prices,
-                                                          id_party))
+                                                          id_party, limit, is_limit))
                 else:
                     print(Utils.sums_per_member_from_wars_witch_stop_word(Bot(cookies=cookies, client=client), ids,
                                                                           is_attacks,
-                                                                          prices, id_party, stop_at))
+                                                                          prices, id_party, stop_at, limit, is_limit))
                 is_error = False
             except Exception as e:
                 print('Новая попытка', e)
@@ -536,6 +607,9 @@ class Utils:
     def old_main(data):
         try:
             global client
+
+            if data['table_data'][0][6] == 'True':
+                data['table_data'][0][5] = Utils.parse_number(data['table_data'][0][5])
 
             is_firefox_cookies = data['use_browser']
 

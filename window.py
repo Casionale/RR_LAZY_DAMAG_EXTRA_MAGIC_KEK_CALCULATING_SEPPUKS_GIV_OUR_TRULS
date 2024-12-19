@@ -89,7 +89,7 @@ def add_row():
                     value2_entry.get(),
                     f"{time_entry.get()} {calendar.get()}",
                     limit_entry.get(),
-                    "True" if limit_bool_var.get() else "False",
+                    "True" if limit_entry.get() != '' else "False",
                 ),
             )
             row_window.destroy()
@@ -130,11 +130,6 @@ def add_row():
     limit_entry = tk.Entry(row_window)
     limit_entry.grid(row=6, column=1, padx=5)
 
-    tk.Label(row_window, text="Лимит?").grid(row=7, column=0, pady=5, padx=5, sticky="w")
-    limit_bool_var = tk.BooleanVar()
-    limit_bool_checkbox = tk.Checkbutton(row_window, variable=limit_bool_var)
-    limit_bool_checkbox.grid(row=7, column=1, sticky="w", padx=5)
-
     save_button = tk.Button(row_window, text="Сохранить", command=save_row)
     save_button.grid(row=8, column=0, columnspan=2, pady=10)
 
@@ -169,6 +164,8 @@ def end_script():
 
 root = tk.Tk()
 root.title("@setux где деньги?")
+root.configure(bg='Snow')
+
 
 # Загружаем настройки
 settings = load_settings()
@@ -176,6 +173,8 @@ settings = load_settings()
 # Поля для ввода путей
 frame_paths = tk.Frame(root)
 frame_paths.pack(padx=10, pady=5, fill=tk.X)
+
+frame_paths.configure(bg='Lavender')
 
 tk.Label(frame_paths, text="Cookies File URI:").grid(row=0, column=0, sticky="w")
 cookies_entry = tk.Entry(frame_paths, width=50)
@@ -191,6 +190,7 @@ tk.Button(frame_paths, text="Обзор", command=lambda: browse_file(session_en
 
 # Прочие текстовые поля
 frame_fields = tk.Frame(root)
+frame_fields.configure(bg='Lavender')
 frame_fields.pack(padx=10, pady=5, fill=tk.X)
 
 fields = [
@@ -309,6 +309,7 @@ def edit_cell(event):
         entry.destroy()
 
     entry.bind("<Return>", save_edit)
+    entry.bind("<Escape>", save_edit)
 
 table.bind("<Double-1>", edit_cell)
 

@@ -1,12 +1,16 @@
+import csv
 import json
+import os
 import sqlite3
 import threading
 import time
 from asyncio import timeout
 from datetime import datetime
 from idlelib.iomenu import encoding
+from dateutil.parser import parse
 
 import cloudscraper
+import dateutil
 from bs4 import BeautifulSoup
 import datetime
 
@@ -118,12 +122,12 @@ class Bot:
         return damages
 
     def get_damage_members(self, url):
-
+        scraper = cloudscraper.create_scraper(browser={'browser': 'firefox', 'platform': 'windows',
+                                                       'mobile': False})
         is_error = True
         while is_error:
             time.sleep(self.timeout)
             Utils.log(f'Жду {self.timeout} сек')
-            scraper = cloudscraper.create_scraper(browser='firefox')
             response = scraper.get(url, cookies=self.cookies, timeout=4000)
             Utils.log(f'Запрос на {url}')
 
@@ -140,8 +144,9 @@ class Bot:
                 is_error = False
             else:
                 print(f'Попытка с пустым уроном, попробуй перейти по {url}')
-                Utils.log(f'Попытка с пустым уроном, правильный ли ID битвы?')
-                time.sleep(2)
+                scraper.get('https://rivalregions.com', cookies=self.cookies, timeout=4)
+                Utils.log(f'Пустой урон, перешли на https://rivalregions.com')
+                time.sleep(3)
 
         for g in gmg:
             if 'user' in g:
@@ -297,10 +302,135 @@ $(document).ready(function() {
                 return []
         return damage
 
+    def get_part_from_dep(self, url):
+        scraper = cloudscraper.create_scraper(browser={'browser': 'firefox', 'platform': 'windows',
+                                                       'mobile': False})
+        is_error = True
+        items = []
+        while is_error:
+            time.sleep(self.timeout)
+            Utils.log(f'Жду {self.timeout} сек')
+            response = scraper.get(url, cookies=self.cookies, timeout=4000)
+            Utils.log(f'Запрос на {url}')
+
+            strip_response = response.text.replace('\n', '')
+
+            if '''<script>
+            $(document).ready(function() {
+            	window.location="https://rivalregions.com";
+            	});
+            </script>''' == response.text:
+                scraper.get('https://rivalregions.com', cookies=self.cookies, timeout=4)
+                Utils.log(f'Пустые депы, перешли на https://rivalregions.com')
+                print(f'Пустые депы, перешли на https://rivalregions.com')
+                time.sleep(3)
+                continue
+
+            if  response.text == '':
+                break
+
+            if '''<script>
+        $(document).ready(function() {
+            window.location="https://rivalregions.com";
+            });
+        </script>''' != response.text:
+                is_error = False
+
+            # print(response.text)
+            #print(strip_response)
+            groups = [x.group() for x in re.finditer(pattern=r'<tr(.|\n)*?</tr>', string=strip_response)]
+            groups.remove(groups[0])
+
+            pattern = (r'<tr(?:.|\n)*?action="slide/profile/(?P<id>\d+)(?:.|\n)*?<td action="slide/profile/\d+" class="list_name pointer">(?P<name>.+?) \(\+(?P<up>\d+)\)</td>(?:.|\n)*?" class="list_level">(?P<date>.+?)</td>')
+
+            dt_now = datetime.datetime.today().strftime('%Y %m %d')
+            dt_yesterday = (datetime.datetime.today() - datetime.timedelta(days=1)).strftime('%Y %m %d')
+
+            for g in groups:
+
+                matches = re.finditer(pattern=pattern, string=g)
+                for match in matches:
+                    profile_id = match.group("id")
+                    name = match.group("name")
+                    up = match.group("up")
+                    date = match.group("date")
+
+                    if "Сегодня" in  date:
+                        date = date.replace('Сегодня',dt_now)
+                        date = dateutil.parser.parse(date)
+                    elif "Вчера" in date:
+                        date = date.replace('Вчера',dt_yesterday)
+                        date = dateutil.parser.parse(date)
+                    else:
+                        date = Utils.parse_russian_date(date)
+
+                    items.append({'id':profile_id, 'name':name, 'up':up, 'date':date})
+
+        return items
+
+    def get_party_member(self, url):
+        scraper = cloudscraper.create_scraper(browser={'browser': 'firefox', 'platform': 'windows',
+                                                       'mobile': False})
+        is_error = True
+        items = []
+
+        while is_error:
+            time.sleep(self.timeout)
+            Utils.log(f'Жду {self.timeout} сек')
+            response = scraper.get(url, cookies=self.cookies, timeout=4000)
+            Utils.log(f'Запрос на {url}')
+
+            strip_response = response.text.replace('\n', '')
+
+            if '''<script>
+                    $(document).ready(function() {
+                    	window.location="https://rivalregions.com";
+                    	});
+                    </script>''' == response.text:
+                scraper.get('https://rivalregions.com', cookies=self.cookies, timeout=4)
+                Utils.log(f'Пустой список партии, перешли на https://rivalregions.com')
+                print(f'Пустой список партии, перешли на https://rivalregions.com')
+                time.sleep(3)
+                continue
+
+            if response.text == '':
+                break
+
+            if '''<script>
+                $(document).ready(function() {
+                    window.location="https://rivalregions.com";
+                    });
+                </script>''' != response.text:
+                is_error = False
+
+            pattern=r'<tr(?:.|\n)*?action="slide/profile/(?P<id>\d+)(?:.|\n)*?'
+            matches = re.finditer(pattern=pattern, string=strip_response)
+            for match in matches:
+                profile_id = match.group("id")
+                items.append(profile_id)
+        return items
+
+
 
 
 class Utils:
 
+    @staticmethod
+    def parse_russian_date(date_str: str) -> datetime:
+        months = {
+            "Января": "01", "Февраля": "02", "Марта": "03", "Апреля": "04",
+            "Мая": "05", "Июня": "06", "Июля": "07", "Августа": "08",
+            "Сентября": "09", "Октября": "10", "Ноября": "11", "Декабря": "12"
+        }
+
+        parts = date_str.split()
+        if len(parts) == 4:
+            day, month, year, time = parts
+            month_num = months.get(month)
+            if month_num:
+                return datetime.datetime.strptime(f"{day}.{month_num}.{year} {time}", "%d.%m.%Y %H:%M")
+
+        raise ValueError(f"Некорректный формат даты: {date_str}")
 
     @staticmethod
     def get_all_attack_sorted_by_stamp(un_unic_damage):
@@ -505,7 +635,7 @@ class Utils:
             f.write(r + '\n')
         f.close()
 
-        print('Готово! Рассмотри файлы Money.txt и ResultLogs.txt')
+        print('Готово! Рассмотри файлы Money.txt, ResultLogs.txt и csv файлы с уроном.')
 
     @staticmethod
     def get_cookies(settings):
@@ -633,6 +763,222 @@ class Utils:
         current_datetime = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         f.write(f'{current_datetime} : {message}\n')
         f.close()
+
+    @staticmethod
+    def deps(data, settings):
+        print('Начинаю смотреть что там по депам')
+        prepared_info = []
+        for r in data:
+            row = {}
+            row['id'] = r['id']
+            row['price'] = r['цена']
+            row['start_date'] = r['начало']
+            if r['лимит'] == '' or r['лимит'] == 0 or r['лимит'] == '0':
+                row['end_date'] = r['конец']
+            else:
+                row['limit'] = r['лимит']
+            row['deps'] = [i+1 for i, val in enumerate(r['чекбоксы']) if val]
+            row['party'] = r['партия']
+            prepared_info.append(row)
+
+        DEPS_DEBUG = False
+
+        if not DEPS_DEBUG:
+            info = Utils.dep_method1(prepared_info, settings)
+            copy_info = info
+
+
+            result = None
+
+            for id in copy_info:
+                for d in copy_info[id]:
+                    for item in copy_info[id][d]:
+                        item['date'] = str(item['date'])
+                pass
+
+            json_info = json.dumps(copy_info, indent=4)
+
+            if not os.path.exists('departments.json'):
+                with open('departments.json', 'w', encoding='utf-8') as f:
+                    f.write(json_info)
+                result = info
+            else:
+                from_file = ''
+                with open('departments.json', 'r', encoding='utf-8') as f:
+                    from_file = f.read()
+
+                from_json = json.loads(from_file)
+                for_save = Utils.get_with_new_in_deps(copy_info, from_json)
+                result = for_save
+                with open('departments.json', 'w', encoding='utf-8') as f:
+                    for_save = json.dumps(for_save, indent=4)
+                    f.write(for_save)
+        else:
+            from_file = ''
+            with open('departments.json', 'r', encoding='utf-8') as f:
+                from_file = f.read()
+
+            result = json.loads(from_file)
+        deps = ['Строительный департамент',
+                'Департамент золота',
+                'Департамент нефти',
+                'Департамент руды',
+                'Департамент алмазов',
+                'Департамент урана',
+                'Департамент жидкого кислорода',
+                'Департамент гелия 3',
+                'Департамент танков',
+                'Департамент космических исследований',
+                'Военно-морское училище']
+        res = Utils.get_info_deps_with_settings(prepared_info, settings, result, deps)
+
+        DEPS_FILENAME = "deps.txt"
+        DEPS_CSV_FILENAME = "deps.csv"
+
+        txt_strings = ''
+
+        for info in prepared_info:
+            if info['id'] != 0:
+                txt_strings += f'{info["start_date"]}, {deps[info['deps'][0]-1]}\n'
+                for i in res:
+                    if info['deps'][0] in res[i].keys(): #Если нужный деп
+                        name = res[i]['name']
+                        up = res[i][info['deps'][0]]
+                        money = up * info['price']
+                        txt_strings += f'{name}: {up} * {info['price']} = {money}\n'
+
+        with open(DEPS_FILENAME, 'w', encoding='utf-8') as f:
+            f.write(txt_strings)
+
+
+        print(f'Расчёты по партии готовы! Просмотри файл {DEPS_FILENAME}')
+
+
+
+    @staticmethod
+    def get_info_deps_with_settings(prepared_info, settings, result, deps):
+        members = Utils.get_patry_member(settings, prepared_info[0]['party'])
+        result_work = {}
+        log = ''
+        csv_strings = ''
+        for info in prepared_info:
+            if info['id'] != 0:
+                log += f'Гос id {info['id']}\n'
+
+                is_limit = False
+                limit = 0
+                start_date = datetime.datetime.strptime(info['start_date'], "%d.%m.%y %H:%M")
+                if 'end_date' in info:
+                    end_date = datetime.datetime.strptime(info['end_date'], "%d.%m.%y %H:%M")
+                else:
+                    is_limit = True
+
+                try:
+                    data = result[str(info['id'])]
+                except:
+                    data = result[info['id']]
+                it = 0
+                for dep in data:
+                    if it != 0:
+                        continue
+                    log += f'Деп : {deps[dep-1]}\n'
+                    for item in data[dep]:
+                        if item['id'] in members: # ЕСЛИ НАШ СЛОНЯРА
+                            if is_limit:
+                                limit += int(item['up'])
+                                if limit > info['limit']-int(item['up']):
+                                    continue
+                            dt = datetime.datetime.strptime(item['date'], "%Y-%m-%d %H:%M:%S")
+                            if dt >= start_date:
+                                if item['id'] in result_work.keys():
+                                    if dep in result_work[item['id']].keys():
+                                        result_work[item['id']][dep] += int(item['up'])
+                                        log += f'{item['date']} {result_work[item['id']]['name']} + {item['up']} Лимит {limit}\n'
+                                        csv_strings+=f'{item['date']};{result_work[item['id']]['name']};{item['up']};{limit}\n'
+                                    else:
+                                        result_work[item['id']][dep] = int(item['up'])
+                                        log += f'{item['date']} {result_work[item['id']]['name']} + {item['up']} Лимит {limit}\n'
+                                        csv_strings += f'{item['date']};{result_work[item['id']]['name']};{item['up']};{limit}\n'
+                                else:
+                                    result_work[item['id']] = {}
+                                    result_work[item['id']]['name'] = item['name']
+                                    result_work[item['id']][dep] = int(item['up'])
+                                    log += f'{item['date']} {result_work[item['id']]['name']} + {item['up']} Лимит {limit}\n'
+                                    csv_strings += f'{item['date']};{result_work[item['id']]['name']};{item['up']};{limit}\n'
+                    it+=1
+
+        with open('dep_log.txt', 'w', encoding='utf-8') as f:
+            f.write(log)
+
+        with open('deps.csv', 'w', encoding='utf-8') as f:
+            f.write(csv_strings)
+
+        return result_work
+
+    @staticmethod
+    def get_patry_member(settings, id_party):
+        cookies = Utils.get_cookies(settings)
+        bot = Bot(cookies=cookies, client=client)
+        url = f'https://rivalregions.com/listed/party/{id_party}'
+        members = bot.get_party_member(url)
+        return members
+
+
+
+
+    @staticmethod
+    def get_with_new_in_deps(old, new):
+        new_items = 0
+        for id in new:
+            if int(id) in old.keys():
+                for dep in new[id]:
+                    if int(dep) in old[int(id)].keys():
+                        for item in new[id][dep]:
+                            if item not in old[int(id)][int(dep)]:
+                                old[int(id)][int(dep)].append(item)
+                                new_items += 1
+                    else:
+                        old[int(id)][int(dep)] = new[id][dep]
+                        print('Новый деп полностью добавлен')
+            else:
+                old[int(id)] = new[id]
+                print('Новый гос полностью добавлен')
+
+
+        print(f"Новых записей: {new_items}")
+        return old
+
+
+
+    @staticmethod
+    def dep_method1(prepared_info, settings):
+        cookies = Utils.get_cookies(settings)
+        bot = Bot(cookies=cookies, client=client)
+        all_info = {}
+        for p in prepared_info:
+            if p['id'] == 0:
+                continue
+
+            all_info[p['id']] = {}
+
+            for dep in p['deps']:
+                all_info[p['id']][dep]=[]
+                url = f'https://rivalregions.com/listed/professors/{dep}/{p['id']}'
+
+                all_info[p['id']][dep].extend(bot.get_part_from_dep(url))
+
+                is_continue = True
+                iterator = 0
+                while is_continue:
+                    iterator += 1
+                    new = bot.get_part_from_dep(url+f'/{iterator*60}')
+                    all_info[p['id']][dep].extend(new)
+                    if len(new) == 0:
+                        is_continue = False
+                    print(f"Получено записей: {len(all_info[p['id']][dep])}")
+        return all_info
+
+
 
 
 

@@ -924,8 +924,6 @@ class Utils:
         return members
 
 
-
-
     @staticmethod
     def get_with_new_in_deps(old, new):
         new_items = 0

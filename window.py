@@ -13,6 +13,7 @@ import re
 from tkcalendar import DateEntry
 from tkinter.messagebox import showerror, showinfo
 
+from StatWindow import OrderStatsWindow
 from utils import Utils
 from utils2 import Utils2
 
@@ -81,6 +82,9 @@ def browse_file(entry):
 def delete_row():
     selected_item = table.selection()[0]
     table.delete(selected_item)
+
+def open_stats_window():
+    OrderStatsWindow(root)
 
 def parse_order(text):
     result = {
@@ -471,6 +475,7 @@ frame_buttons.pack(padx=10, pady=10, fill=tk.X)
 
 tk.Button(frame_buttons, text="Добавить строку", command=add_row).pack(side=tk.LEFT, padx=5)
 tk.Button(frame_buttons, text="Удалить строку", command=delete_row).pack(side=tk.LEFT, padx=5)
+tk.Button(frame_buttons, text="Стат. заказов", command=open_stats_window).pack(side=tk.LEFT, padx=5)
 
 tk.Button(frame_buttons, text="Департаменты", command=deps).pack(side=tk.RIGHT, padx=5)
 tk.Button(frame_buttons, text="Старт", command=start_script).pack(side=tk.RIGHT, padx=5)

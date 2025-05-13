@@ -251,7 +251,6 @@ def start_script():
     worker = threading.Thread(target=Utils.old_main, daemon=True, args=(data,))
     worker.start()
 
-    #Utils.old_main(data)
     print("Collected Data:", data)
 
 def deps():

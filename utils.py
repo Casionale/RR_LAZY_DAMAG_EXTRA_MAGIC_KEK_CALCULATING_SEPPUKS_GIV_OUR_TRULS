@@ -974,6 +974,7 @@ class Utils:
                     if len(new) == 0:
                         is_continue = False
                     print(f"Получено записей: {len(all_info[p['id']][dep])}")
+
         return all_info
 
 

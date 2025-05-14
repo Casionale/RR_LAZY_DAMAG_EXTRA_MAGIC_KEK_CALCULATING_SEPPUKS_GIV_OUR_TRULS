@@ -18,6 +18,7 @@ class Order(Base):
     name = Column(String)
     date = Column(String)
     price = Column(Float)
+    limit = Column(String, nullable=True)
 
 class AccountInOrder(Base):
     __tablename__ = 'account_inorder'

@@ -76,8 +76,8 @@ class OrderStatsWindow:
 
         # Загружаем данные из БД и отображаем
         accounts = Database.session.query(Account).all()
-        data = [(a.id, a.name, a.tg) for a in accounts]
-        self.create_table(frame, ["id", "name", "tg"], data)
+        data = [(a.id, a.name, a.tg, a.url) for a in accounts]
+        self.create_table(frame, ["id", "name", "tg", "url"], data)
 
         # Добавляем кнопку "Добавить аккаунт"
         tk.Button(frame, text="Добавить аккаунт", command=self.open_add_account_window).pack(pady=5)

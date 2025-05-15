@@ -591,6 +591,7 @@ class Utils:
 
             csv_file_data = ''
             no_pay_data = ''
+            csv_file_data_2 = ''
 
             all_damage_sorted_by_stamp = Utils.get_all_attack_sorted_by_stamp(un_unic_damage)
 
@@ -615,6 +616,9 @@ class Utils:
                     csv_file_data += f'{m};{result['damage']};\n'
                     no_pay_data += f'{m:<40}: {result["no_pay"]}\n'
 
+                    id = next(item for item in damage_members if item["name"] == m)
+                    csv_file_data_2 += f'{m};{result['damage']};https://rivalregions.com/#slide/profile/{id['id']};\n'
+
             results.append(f'ИТОГО: {sum} Rivals\n')
 
             f = open(f'Война {ids[i]}.csv', 'w', encoding='utf-8')
@@ -623,6 +627,10 @@ class Utils:
 
             f = open(f'Неоплаченное {ids[i]}.txt', 'w', encoding='utf-8')
             f.write(no_pay_data)
+            f.close()
+
+            f = open(f'Война 2.0 {ids[i]}.csv', 'w', encoding='utf-8')
+            f.write(csv_file_data_2)
             f.close()
 
         f = open('Money.txt', 'w', encoding='utf-8')

@@ -11,6 +11,7 @@ class Account(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String)
     tg = Column(String)
+    url = Column(String)
 
 class Order(Base):
     __tablename__ = 'order'
@@ -29,7 +30,12 @@ class AccountInOrder(Base):
 
 
 # Настройка подключения к базе данных
-DATABASE_URL = "sqlite:///records.db"
+#DATABASE_URL = "sqlite:///records.db"
+conn_string = ""
+with open("msql_connection_string.txt", "r", encoding="utf-8") as f:
+    conn_string = f.read()
+
+DATABASE_URL = conn_string
 engine = create_engine(DATABASE_URL)
 Base.metadata.create_all(engine)
 Session = sessionmaker(bind=engine)

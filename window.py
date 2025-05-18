@@ -15,7 +15,6 @@ from tkinter.messagebox import showerror, showinfo
 
 from StatWindow import OrderStatsWindow
 from utils import Utils
-from utils2 import Utils2
 
 
 class StdoutGuiRedirector(io.StringIO):

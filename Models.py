@@ -14,7 +14,7 @@ class Account(Base):
     url = Column(String)
 
 class Order(Base):
-    __tablename__ = 'order'
+    __tablename__ = 'orders'
     id = Column(Integer, primary_key=True)
     name = Column(String)
     date = Column(String)
@@ -25,7 +25,7 @@ class AccountInOrder(Base):
     __tablename__ = 'account_inorder'
     id = Column(Integer, primary_key=True)
     account_id = Column(Integer, ForeignKey('account.id'))
-    order_id = Column(Integer, ForeignKey('order.id'))
+    order_id = Column(Integer, ForeignKey('orders.id'))
     damage = Column(Float)
 
 

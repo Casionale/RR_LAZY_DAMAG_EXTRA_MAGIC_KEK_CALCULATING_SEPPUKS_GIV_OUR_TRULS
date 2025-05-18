@@ -4,10 +4,7 @@ import os
 import sqlite3
 import threading
 import time
-from asyncio import timeout
 from datetime import datetime
-from idlelib.iomenu import encoding
-from dateutil.parser import parse
 
 import cloudscraper
 import dateutil
@@ -61,8 +58,8 @@ class Bot:
 
         time.sleep(self.timeout)
         Utils.log(f'Жду {self.timeout} сек')
-        response = scraper.get(f'https://rivalregions.com/main/get_hp?c={self.cookies['rr']}', cookies=self.cookies)
-        Utils.log(f'Запрос на https://rivalregions.com/main/get_hp?c={self.cookies['rr']}')
+        response = scraper.get(f'https://rivalregions.com/main/get_hp?c={self.cookies["rr"]}', cookies=self.cookies)
+        Utils.log(f'Запрос на https://rivalregions.com/main/get_hp?c={self.cookies["rr"]}')
 
         data_energy = json.loads(response.text)
 
@@ -496,7 +493,7 @@ class Utils:
                     add_sum = int(dmg['damage']) * price
                     sum += add_sum
                     sum_damage += int(dmg['damage'])
-                    str_check += f'{dmg["time"]} {dmg['damage']}  * {price} = {add_sum}\n'
+                    str_check += f'{dmg["time"]} {dmg["damage"]}  * {price} = {add_sum}\n'
 
                     if add_sum == 0:
                         pass
@@ -561,7 +558,7 @@ class Utils:
                 if member['name'] not in un_unic_damage:
                     attacks = []
 
-                    url_damage = f'https://rivalregions.com/slide/damage/{member['id']}'
+                    url_damage = f'https://rivalregions.com/slide/damage/{member["id"]}'
 
                     is_more_need = True
                     iters = 0
@@ -582,8 +579,8 @@ class Utils:
                         un_unic_damage[member['name']].extend(attacks)
                     else:
                         un_unic_damage[member['name']] = [attacks]
-                print(f'Законечена загрузка урона {member['name']}')
-                Utils.log(f'Законечена загрузка урона {member['name']}')
+                print(f'Законечена загрузка урона {member["name"]}')
+                Utils.log(f'Законечена загрузка урона {member["name"]}')
 
             results.append(f'Война {ids[i]}')
 
@@ -613,11 +610,11 @@ class Utils:
                     logs.append(result['log'])
                     sum += result['sum']
 
-                    csv_file_data += f'{m};{result['damage']};\n'
+                    csv_file_data += f'{m};{result["damage"]};\n'
                     no_pay_data += f'{m:<40}: {result["no_pay"]}\n'
 
                     id = next(item for item in damage_members if item["name"] == m)
-                    csv_file_data_2 += f'{m};{result['damage']};https://rivalregions.com/#slide/profile/{id['id']};\n'
+                    csv_file_data_2 += f'{m};{result["damage"]};https://rivalregions.com/#slide/profile/{id["id"]};\n'
 
             results.append(f'ИТОГО: {sum} Rivals\n')
 
@@ -847,13 +844,13 @@ class Utils:
 
         for info in prepared_info:
             if info['id'] != 0:
-                txt_strings += f'{info["start_date"]}, {deps[info['deps'][0]-1]}\n'
+                txt_strings += f'{info["start_date"]}, {deps[info["deps"][0]-1]}\n'
                 for i in res:
                     if info['deps'][0] in res[i].keys(): #Если нужный деп
                         name = res[i]['name']
                         up = res[i][info['deps'][0]]
                         money = up * info['price']
-                        txt_strings += f'{name}: {up} * {info['price']} = {money}\n'
+                        txt_strings += f'{name}: {up} * {info["price"]} = {money}\n'
 
         with open(DEPS_FILENAME, 'w', encoding='utf-8') as f:
             f.write(txt_strings)
@@ -871,7 +868,7 @@ class Utils:
         csv_strings = ''
         for info in prepared_info:
             if info['id'] != 0:
-                log += f'Гос id {info['id']}\n'
+                log += f'Гос id {info["id"]}\n'
 
                 is_limit = False
                 limit = 0
@@ -901,18 +898,18 @@ class Utils:
                                 if item['id'] in result_work.keys():
                                     if dep in result_work[item['id']].keys():
                                         result_work[item['id']][dep] += int(item['up'])
-                                        log += f'{item['date']} {result_work[item['id']]['name']} + {item['up']} Лимит {limit}\n'
-                                        csv_strings+=f'{item['date']};{result_work[item['id']]['name']};{item['up']};{limit}\n'
+                                        log += f'{item["date"]} {result_work[item["id"]]["name"]} + {item["up"]} Лимит {limit}\n'
+                                        csv_strings+=f'{item["date"]};{result_work[item["id"]]["name"]};{item["up"]};{limit}\n'
                                     else:
                                         result_work[item['id']][dep] = int(item['up'])
-                                        log += f'{item['date']} {result_work[item['id']]['name']} + {item['up']} Лимит {limit}\n'
-                                        csv_strings += f'{item['date']};{result_work[item['id']]['name']};{item['up']};{limit}\n'
+                                        log += f'{item["date"]} {result_work[item["id"]]["name"]} + {item["up"]} Лимит {limit}\n'
+                                        csv_strings += f'{item["date"]};{result_work[item["id"]]["name"]};{item["up"]};{limit}\n'
                                 else:
                                     result_work[item['id']] = {}
                                     result_work[item['id']]['name'] = item['name']
                                     result_work[item['id']][dep] = int(item['up'])
-                                    log += f'{item['date']} {result_work[item['id']]['name']} + {item['up']} Лимит {limit}\n'
-                                    csv_strings += f'{item['date']};{result_work[item['id']]['name']};{item['up']};{limit}\n'
+                                    log += f'{item["date"]} {result_work[item["id"]]["name"]} + {item["up"]} Лимит {limit}\n'
+                                    csv_strings += f'{item["date"]};{result_work[item["id"]]["name"]};{item["up"]};{limit}\n'
                     it+=1
 
         with open('dep_log.txt', 'w', encoding='utf-8') as f:
@@ -969,7 +966,7 @@ class Utils:
 
             for dep in p['deps']:
                 all_info[p['id']][dep]=[]
-                url = f'https://rivalregions.com/listed/professors/{dep}/{p['id']}'
+                url = f'https://rivalregions.com/listed/professors/{dep}/{p["id"]}'
 
                 all_info[p['id']][dep].extend(bot.get_part_from_dep(url))
 

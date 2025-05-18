@@ -3,9 +3,8 @@ import tkinter as tk
 from tkinter import filedialog, messagebox
 from tkinter import ttk
 
-from cloudscraper import session
-
 from Models import Database, AccountInOrder, Order, Account
+from StatUtils import StatUtils
 
 
 class OrderStatsWindow:
@@ -94,7 +93,7 @@ class OrderStatsWindow:
 
         if frame is None:
             # Если не нашли — создаём новую
-            frame = tk.Frame(self.notebook)
+            frame = tk.Frame(self.notebook, name="order_tab")
             self.notebook.add(frame, text=tab_text)
 
         # Очищаем содержимое вкладки
@@ -135,8 +134,16 @@ class OrderStatsWindow:
         tk.Button(frame, text="Добавить из csv файла", command=self.open_add_accountinorder_window).pack(pady=5)
 
     def get_stats(self):
-        # Заглушка
-        pass
+        order_list = []
+        tree = self.notebook.children['order_tab'].children['!treeview']
+        for selected_item in tree.selection():
+            item = tree.item(selected_item)
+            order_list.append(Database.session.query(Order).filter_by(id=item['values'][0]).first())
+        info = StatUtils.order_participants(order_list)
+        if info == 0:
+            messagebox.showinfo('Просмотри файлы')
+        else:
+            messagebox.showerror('Ошибка!')
 
     def calculate(self):
         # Заглушка

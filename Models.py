@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, Float, ForeignKey
+from sqlalchemy import create_engine, Column, Integer, String, Float, ForeignKey, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
@@ -27,6 +27,13 @@ class AccountInOrder(Base):
     account_id = Column(Integer, ForeignKey('account.id'))
     order_id = Column(Integer, ForeignKey('orders.id'))
     damage = Column(Float)
+
+class Payment(Base):
+    __tablename__ = 'payment'
+    id = Column(Integer, primary_key=True)
+    account_inorder_id = Column(Integer, ForeignKey('account_inorder.id'))
+    cash = Column(Integer)
+    limiter = Column(Boolean)
 
 
 # Настройка подключения к базе данных

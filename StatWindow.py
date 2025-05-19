@@ -3,7 +3,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox
 from tkinter import ttk
 
-from Models import Database, AccountInOrder, Order, Account
+from Models import Database, AccountInOrder, Order, Account, Payment
 from StatUtils import StatUtils
 
 
@@ -29,6 +29,7 @@ class OrderStatsWindow:
         self.create_account_tab()
         self.create_order_tab()
         self.create_account_inorder_tab()
+        self.create_payment_tab()
 
         # Нижняя панель с кнопками
         self.button_panel = tk.Frame(self.main_frame)
@@ -133,6 +134,29 @@ class OrderStatsWindow:
 
         tk.Button(frame, text="Добавить из csv файла", command=self.open_add_accountinorder_window).pack(pady=5)
 
+    def create_payment_tab(self):
+        tab_text = "Оплата"
+        frame = None
+
+        # Ищем существующую вкладку с именем "Оплата"
+        for i in range(self.notebook.index("end")):
+            if self.notebook.tab(i, "text") == tab_text:
+                frame = self.notebook.nametowidget(self.notebook.tabs()[i])
+                break
+
+        if frame is None:
+            # Если не нашли — создаём новую
+            frame = tk.Frame(self.notebook)
+            self.notebook.add(frame, text=tab_text)
+
+        # Очищаем содержимое вкладки
+        for widget in frame.winfo_children():
+            widget.destroy()
+
+        payments = Database.session.query(Payment).all()
+        data = [(p.id, p.account_inorder_id, p.cash, p.limiter) for p in payments]
+        self.create_table(frame, ["id", "account_inorder_id", "cash", "limiter"], data)
+
     def get_stats(self):
         order_list = []
         tree = self.notebook.children['order_tab'].children['!treeview']
@@ -216,21 +240,55 @@ class OrderStatsWindow:
     def calculate_cash(self, order, participants, mode, covered_by):
         session = Database.session
         covered_count = len(covered_by)
+        covered_damage = {} #account.id damage
+
+        if mode == "covered":
+            limit = order.limit.replace('k', '000')
+            limit = int(limit)
+
+            sum_damage = 0
+
+            for p in participants:
+                ainord = session.query(AccountInOrder).filter_by(account_id=p.id, order_id=order.id).first()
+                sum_damage += ainord.damage
+
+            extra_damage = sum_damage - limit
+
+            part = int(extra_damage / covered_count)
+            #ДОСЧИТАТЬ ДАМАГ
+            for a in covered_by:
+                ainord = session.query(AccountInOrder).filter_by(account_id=a.id, order_id=order.id).first()
+                covered_damage[a.id]=int(ainord.damage - part)
+
 
         cashlist = [('Аккаунт', 'tg', 'Дамаг учтён.', 'Плата')]
 
-        for p in participants:
-            ainord = session.query(AccountInOrder).filter_by(account_id=p.id, order_id=order.id).first()
-            if p not in covered_by:
-                row = (p.name, p.tg, int(ainord.damage), int(ainord.damage * order.price))
-            else:
-                messagebox.showwarning('Не реализовано!')
-            cashlist.append(row)
+        try:
+            for p in participants:
+                ainord = session.query(AccountInOrder).filter_by(account_id=p.id, order_id=order.id).first()
+                if p not in covered_by:
+                    cash = int(ainord.damage * order.price)
+                    row = (p.name, p.tg, int(ainord.damage), cash)
+                    self.createCash(ainord.id, cash, False, session)
+                else:
+                    cash = int(covered_damage[p.id] * order.price)
+                    row = (p.name, p.tg, covered_damage[p.id], cash)
+                    self.createCash(ainord.id, cash, True, session)
+                cashlist.append(row)
 
-        with open(f'{order.name} выплаты.csv', 'w', newline='', encoding='utf-8') as f:
-            writer = csv.writer(f, delimiter=';', quoting=csv.QUOTE_NONE)
-            writer.writerows(cashlist)
+            session.commit()
 
+            with open(f'{order.name} выплаты.csv', 'w', newline='', encoding='utf-8') as f:
+                writer = csv.writer(f, delimiter=';', quoting=csv.QUOTE_NONE)
+                writer.writerows(cashlist)
+
+            messagebox.showinfo('Выплаты рассчитаны', 'Выплаты рассчитаны и сохранены в таблицу выплат!')
+        except Exception as e:
+            messagebox.showwarning(message=e)
+
+    def createCash(self, ainord_id, cash, limiter, session):
+        new_payment = Payment(account_inorder_id=ainord_id, cash=cash, limiter=limiter)
+        session.add(new_payment)
 
 class AddAccountWindow:
     def __init__(self, master, on_save_callback=None):

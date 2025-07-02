@@ -244,7 +244,7 @@ class OrderStatsWindow:
 
         if mode == "covered":
             limit = order.limit.replace('k', '000')
-            limit = int(limit)
+            limit = float(limit)
 
             sum_damage = 0
 
@@ -261,18 +261,18 @@ class OrderStatsWindow:
                 covered_damage[a.id]=int(ainord.damage - part)
 
 
-        cashlist = [('Аккаунт', 'tg', 'Дамаг учтён.', 'Плата')]
+        cashlist = [('Аккаунт', 'tg','url', 'Дамаг учтён.', 'Плата')]
 
         try:
             for p in participants:
                 ainord = session.query(AccountInOrder).filter_by(account_id=p.id, order_id=order.id).first()
                 if p not in covered_by:
                     cash = int(ainord.damage * order.price)
-                    row = (p.name, p.tg, int(ainord.damage), cash)
+                    row = (p.name, p.tg, p.url, int(ainord.damage), cash)
                     self.createCash(ainord.id, cash, False, session)
                 else:
                     cash = int(covered_damage[p.id] * order.price)
-                    row = (p.name, p.tg, covered_damage[p.id], cash)
+                    row = (p.name, p.tg, p.url, covered_damage[p.id], cash)
                     self.createCash(ainord.id, cash, True, session)
                 cashlist.append(row)
 

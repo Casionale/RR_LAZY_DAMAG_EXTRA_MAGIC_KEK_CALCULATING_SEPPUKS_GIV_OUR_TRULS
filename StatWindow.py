@@ -219,9 +219,10 @@ class OrderStatsWindow:
                 session.add(new_account_in_order)
         except Exception as e:
             messagebox.showerror("Ошибка БД!", str(e))
-        finally:
-            session.commit()
-            messagebox.showinfo("Все участники добавлены в заказ!")
+            return
+
+        session.commit()
+        messagebox.showinfo("Все участники добавлены в заказ!")
 
 
 
@@ -491,7 +492,7 @@ class PaymentCalcWindow:
         self.load_orders()
 
     def load_orders(self):
-        orders = self.session.query(Order).join(AccountInOrder).distinct().all()
+        orders = self.session.query(Order).order_by(Order.id).join(AccountInOrder).distinct().all()
         self.orders = orders
         names = [f"{o.id}: {o.name}" for o in orders]
         self.order_map = {f"{o.id}: {o.name}": o for o in orders}

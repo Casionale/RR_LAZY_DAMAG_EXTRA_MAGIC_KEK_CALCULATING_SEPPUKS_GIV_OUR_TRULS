@@ -18,7 +18,10 @@ from mozDecompress import mozlz4_to_text
 # Куки сессии
 cookies = {}
 
-url_main = 'https://rivalregions.com/#overview'
+url_main = 'https://rivalka.ru/#overview'
+#url_main = 'https://m.rivalregions.com/#overview'
+domain = 'https://rivalka.ru'
+#domain = 'https://m.rivalregions.com'
 client = ''
 
 class Bot:
@@ -30,7 +33,7 @@ class Bot:
 
     def get_data_main(self, url):
         scraper = cloudscraper.create_scraper(browser='firefox')
-        response = scraper.get('https://rivalregions.com/#overview', cookies=self.cookies)
+        response = scraper.get(url_main, cookies=self.cookies, timeout=(50, 100))
 
         if 'Sign in with Google' in response.text:
             return 'Сессия устарела!'
@@ -58,8 +61,8 @@ class Bot:
 
         time.sleep(self.timeout)
         Utils.log(f'Жду {self.timeout} сек')
-        response = scraper.get(f'https://rivalregions.com/main/get_hp?c={self.cookies["rr"]}', cookies=self.cookies)
-        Utils.log(f'Запрос на https://rivalregions.com/main/get_hp?c={self.cookies["rr"]}')
+        response = scraper.get(f'{domain}/main/get_hp?c={self.cookies["rr"]}', cookies=self.cookies)
+        Utils.log(f'Запрос на {domain}/main/get_hp?c={self.cookies["rr"]}')
 
         data_energy = json.loads(response.text)
 
@@ -85,8 +88,8 @@ class Bot:
                 # Отправляем GET запрос на главную страницу
                 time.sleep(self.timeout)
                 Utils.log(f'Жду {self.timeout} сек')
-                response = scraper.get('https://rivalregions.com/#overview', cookies=self.cookies)
-                Utils.log(f'Запрос на https://rivalregions.com/#overview')
+                response = scraper.get(url_main, cookies=self.cookies)
+                Utils.log(f'Запрос на {url_main}')
 
                 if response.status_code == 200:
                     if 'Sign in with Google' not in response.text and response.text != '':
@@ -113,7 +116,7 @@ class Bot:
     def get_list_damage_from_war(self, id, is_attack):
         time.sleep(self.timeout)
         Utils.log(f'Жду {self.timeout} сек')
-        url = f"https://rivalregions.com/war/damage/{id}/{0 if is_attack == True else 1}?c={self.client}"
+        url = f"{domain}/war/damage/{id}/{0 if is_attack == True else 1}?c={self.client}"
         damages = self.get_damage_members(url)
 
         return damages
@@ -141,8 +144,8 @@ class Bot:
                 is_error = False
             else:
                 print(f'Попытка с пустым уроном, попробуй перейти по {url}')
-                scraper.get('https://rivalregions.com', cookies=self.cookies, timeout=4)
-                Utils.log(f'Пустой урон, перешли на https://rivalregions.com')
+                scraper.get(f'{domain}', cookies=self.cookies, timeout=4)
+                Utils.log(f'Пустой урон, перешли на {domain}')
                 time.sleep(3)
 
         for g in gmg:
@@ -184,7 +187,7 @@ class Bot:
     def get_list_damage_from_war_partys(self, id):
         time.sleep(self.timeout)
         Utils.log(f'Жду {self.timeout} сек')
-        url = f'https://rivalregions.com/listed/partydamage/{id}?c={self.client}'
+        url = f'{domain}/listed/partydamage/{id}?c={self.client}'
         scraper = cloudscraper.create_scraper()
         response = scraper.get(url, cookies=self.cookies)
         Utils.log(f'Запрос на {url}')
@@ -213,7 +216,7 @@ class Bot:
         is_error = True
         while is_error:
             is_attack = 0 if is_attack == 'True' else 1
-            url = f'https://rivalregions.com/war/damageparties/{id}/{is_attack}/{id_party}?c={self.client}'
+            url = f'{domain}/war/damageparties/{id}/{is_attack}/{id_party}?c={self.client}'
             damages = self.get_damage_members(url)
             if type(damages) is not list or len(damages) == 0:
                 is_error = True
@@ -229,15 +232,15 @@ class Bot:
             time.sleep(self.timeout)
             Utils.log(f'Жду {self.timeout} сек')
             scraper = cloudscraper.create_scraper()
-            response = scraper.get(url, cookies=self.cookies, timeout=40)
+            response = scraper.get(url, cookies=self.cookies, timeout=100)
             Utils.log(f'Запрос на {url}')
 
-            if '''<script>
-$(document).ready(function() {
-	window.location="https://rivalregions.com";
-	});
-</script>''' != response.text:
+            error_str = '<script>\r\n$(document).ready(function() {\r\n\twindow.location="https://rivalka.ru";\r\n\t});\r\n</script>\r\n'
+            if (error_str != response.text):
                 is_error = False
+            else:
+                r = scraper.get(domain, cookies=self.cookies, timeout=40)
+                Utils.log(f'Запрос на {domain}')
 
             if response.text == '':
                 return None
@@ -312,25 +315,19 @@ $(document).ready(function() {
 
             strip_response = response.text.replace('\n', '')
 
-            if '''<script>
-            $(document).ready(function() {
-            	window.location="https://rivalregions.com";
-            	});
-            </script>''' == response.text:
-                scraper.get('https://rivalregions.com', cookies=self.cookies, timeout=4)
-                Utils.log(f'Пустые депы, перешли на https://rivalregions.com')
-                print(f'Пустые депы, перешли на https://rivalregions.com')
+            error_str = '<script>\r\n$(document).ready(function() {\r\n\twindow.location="https://rivalka.ru";\r\n\t});\r\n</script>\r\n'
+            if (error_str != response.text):
+                scraper.get(domain, cookies=self.cookies, timeout=4)
+                Utils.log(f'Пустые депы, перешли на {domain}')
+                print(f'Пустые депы, перешли на {domain}')
                 time.sleep(3)
                 continue
 
             if  response.text == '':
                 break
 
-            if '''<script>
-        $(document).ready(function() {
-            window.location="https://rivalregions.com";
-            });
-        </script>''' != response.text:
+            error_str = '<script>\r\n$(document).ready(function() {\r\n\twindow.location="https://rivalka.ru";\r\n\t});\r\n</script>\r\n'
+            if (error_str != response.text):
                 is_error = False
 
             # print(response.text)
@@ -379,25 +376,19 @@ $(document).ready(function() {
 
             strip_response = response.text.replace('\n', '')
 
-            if '''<script>
-                    $(document).ready(function() {
-                    	window.location="https://rivalregions.com";
-                    	});
-                    </script>''' == response.text:
-                scraper.get('https://rivalregions.com', cookies=self.cookies, timeout=4)
-                Utils.log(f'Пустой список партии, перешли на https://rivalregions.com')
-                print(f'Пустой список партии, перешли на https://rivalregions.com')
+            error_str = '<script>\r\n$(document).ready(function() {\r\n\twindow.location="https://rivalka.ru";\r\n\t});\r\n</script>\r\n'
+            if (error_str != response.text):
+                scraper.get({domain}, cookies=self.cookies, timeout=4)
+                Utils.log(f'Пустой список партии, перешли на {domain}')
+                print(f'Пустой список партии, перешли на {domain}')
                 time.sleep(3)
                 continue
 
             if response.text == '':
                 break
 
-            if '''<script>
-                $(document).ready(function() {
-                    window.location="https://rivalregions.com";
-                    });
-                </script>''' != response.text:
+            error_str = '<script>\r\n$(document).ready(function() {\r\n\twindow.location="https://rivalka.ru";\r\n\t});\r\n</script>\r\n'
+            if (error_str != response.text):
                 is_error = False
 
             pattern=r'<tr(?:.|\n)*?action="slide/profile/(?P<id>\d+)(?:.|\n)*?'
@@ -558,7 +549,7 @@ class Utils:
                 if member['name'] not in un_unic_damage:
                     attacks = []
 
-                    url_damage = f'https://rivalregions.com/slide/damage/{member["id"]}'
+                    url_damage = f'{domain}/slide/damage/{member["id"]}'
 
                     is_more_need = True
                     iters = 0
@@ -568,7 +559,7 @@ class Utils:
                         else:
                             part_damage = bot.get_damage(f'{url_damage}/{60 * iters}')
 
-                        if part_damage is not None:
+                        if part_damage is not None and len(part_damage) > 0:
                             for d in part_damage:
                                 attacks.append(d)
                             iters += 1
@@ -614,7 +605,7 @@ class Utils:
                     no_pay_data += f'{m:<40}: {result["no_pay"]}\n'
 
                     id = next(item for item in damage_members if item["name"] == m)
-                    csv_file_data_2 += f'{m};{result["damage"]};https://rivalregions.com/#slide/profile/{id["id"]};\n'
+                    csv_file_data_2 += f'{m};{result["damage"]};{domain}/#slide/profile/{id["id"]};\n'
 
             results.append(f'ИТОГО: {sum} Rivals\n')
 
@@ -651,7 +642,7 @@ class Utils:
             cursor = connection.cursor()
             cursor.execute('''
     	SELECT name, value FROM moz_cookies WHERE (name = ? OR name = ? OR name = ? OR name = ? OR name = ?) AND host = ?
-    	''', ('rr', 'rr_add', 'rr_f', 'rr_id', 'PHPSESSID', 'rivalregions.com'))
+    	''', ('rr', 'rr_add', 'rr_f', 'rr_id', 'PHPSESSID', f'{domain.replace("https://","")}'))
             results = cursor.fetchall()
 
             connection.close()
@@ -668,7 +659,7 @@ class Utils:
             cookies['PHPSESSID'] = ''
 
             for cookie in session_cookies:
-                if cookie['host'] == 'rivalregions.com' and cookie['name'] == 'PHPSESSID':
+                if cookie['host'] == f'{domain}' and cookie['name'] == 'PHPSESSID':
                     cookies['PHPSESSID'] = cookie['value']
 
             return cookies
@@ -924,7 +915,7 @@ class Utils:
     def get_patry_member(settings, id_party):
         cookies = Utils.get_cookies(settings)
         bot = Bot(cookies=cookies, client=client)
-        url = f'https://rivalregions.com/listed/party/{id_party}'
+        url = f'{domain}/listed/party/{id_party}'
         members = bot.get_party_member(url)
         return members
 
@@ -966,7 +957,7 @@ class Utils:
 
             for dep in p['deps']:
                 all_info[p['id']][dep]=[]
-                url = f'https://rivalregions.com/listed/professors/{dep}/{p["id"]}'
+                url = f'{domain}/listed/professors/{dep}/{p["id"]}'
 
                 all_info[p['id']][dep].extend(bot.get_part_from_dep(url))
 

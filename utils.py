@@ -167,6 +167,12 @@ class Bot:
                     else:
                         name = soup.find_all('td', {'class': 'list_name pointer tip green'})[0].text.strip()
 
+                    tr_tag = soup.find('tr', {'class': 'list_link header_buttons_hover'})
+                    if tr_tag:
+                        user = tr_tag.get('user')
+                    else:
+                        user = None
+
                     individual_damage = {
                         "name": name,
                         "lvl": lvl,
@@ -215,7 +221,7 @@ class Bot:
     def get_list_damage_from_war_party_members(self, id, is_attack, id_party):
         is_error = True
         while is_error:
-            is_attack = 0 if is_attack == 'True' else 1
+            is_attack = 0 if is_attack else 1
             url = f'{domain}/war/damageparties/{id}/{is_attack}/{id_party}?c={self.client}'
             damages = self.get_damage_members(url)
             if type(damages) is not list or len(damages) == 0:
@@ -480,7 +486,7 @@ class Utils:
             stop_time = int(datetime.datetime.strptime(stop_time, "%H:%M %d.%m.%Y").timestamp())
         for dmg in damage:
             if dmg['stamp'] <= stop_time:
-                if int(dmg['id_war']) == id_war:
+                if dmg['id_war'] == id_war:
                     add_sum = int(dmg['damage']) * price
                     sum += add_sum
                     sum_damage += int(dmg['damage'])
@@ -973,7 +979,126 @@ class Utils:
 
         return all_info
 
+    @staticmethod
+    def new_main(order_data, cookies):
+        try:
+            return Utils.new_kek_calculating(order_data, cookies, False)
 
+        except Exception as e:
+            Utils.log(f'Исплючение {e}')
+
+    @staticmethod
+    def new_kek_calculating(order_data, cookies, is_simple=False):
+        is_error = True
+        while is_error:
+            try:
+                bot = Bot(cookies=cookies, client=client)
+                data_main = bot.get_data_main(url=url_main)
+                print(data_main)
+                if data_main == 'Сессия устарела!' or 'Пустой ответ':
+                    # raise Exception
+                    Utils.log(f'Сессия устарела или пустой ответ')
+                    pass
+                is_error = False
+            except Exception as e:
+                Utils.log(f'Исключение {e}')
+                print('Новая попытка посчитать')
+
+        is_error = True
+        while is_error:
+            print('Начинаю смотреть шо там по урону')
+
+            ids = order_data[0]
+            is_attacks = order_data[1]
+            prices = order_data[2]
+            id_party = 140
+            stop_at = order_data[3]
+            limit = order_data[4]
+            is_limit = order_data[5]
+
+            try:
+                return Utils.new_sums_per_member_from_wars_witch_stop_word(Bot(cookies=cookies, client=client), ids,
+                                                                          is_attacks,
+                                                                          prices, id_party, stop_at, limit, is_limit)
+                is_error = False
+            except Exception as e:
+                print('Новая попытка', e)
+
+    @staticmethod
+    def new_sums_per_member_from_wars_witch_stop_word(bot, ids, is_attacks, prices, id_party, stop_at, limit, is_limit):
+        members = {}
+        un_unic_damage = {}
+        results = []
+        logs = []
+
+        un_unic_damage = {}
+
+
+        date_time_obj = datetime.datetime.strptime(stop_at, '%H:%M %d.%m.%Y')
+
+        is_error = True
+        while is_error:
+            try:
+                damage_members = bot.get_list_damage_from_war_party_members(ids, is_attacks, id_party)
+                is_error = False
+            except Exception as e:
+                pass
+
+        for member in damage_members:
+            if member['name'] not in un_unic_damage:
+                attacks = []
+
+                url_damage = f'{domain}/slide/damage/{member["id"]}'
+
+                is_more_need = True
+                iters = 0
+                while is_more_need:
+                    if iters == 0:
+                        part_damage = bot.get_damage(url_damage)  # Нада таво етаво по 60
+                    else:
+                        part_damage = bot.get_damage(f'{url_damage}/{60 * iters}')
+
+                    if part_damage is not None and len(part_damage) > 0:
+                        for d in part_damage:
+                            attacks.append(d)
+                        iters += 1
+                    else:
+                        is_more_need = False
+
+                if member['name'] in un_unic_damage:
+                    un_unic_damage[member['name']].extend(attacks)
+                else:
+                    un_unic_damage[member['name']] = [attacks]
+            print(f'Законечена загрузка урона {member["name"]}')
+            Utils.log(f'Законечена загрузка урона {member["name"]}')
+
+        results.append(f'Война {ids}')
+
+        sum = 0
+
+        all_damage_sorted_by_stamp = Utils.get_all_attack_sorted_by_stamp(un_unic_damage)
+
+        # Если по лимиту
+        if is_limit == 'True':
+            new_stop_at = Utils.get_stop_at_by_limit(all_damage_sorted_by_stamp, limit, ids)
+            stop_at = new_stop_at
+
+        # ТУТ ВСЁ УЖЕ ДОЛЖНО БЫТЬ ИЗВЕСТНО!
+
+        return un_unic_damage, damage_members
+
+        for member in un_unic_damage:
+            result = Utils.calculate_truls_for_war(un_unic_damage[member], ids, prices, stop_at, member)
+            if result['damage'] > 0:
+                m = member
+                r = result['sum']
+                results.append(f'{m:<40}: {str(r):<15} Rivals')
+
+                logs.append(result['log'])
+                sum += result['sum']
+
+
+        results.append(f'ИТОГО: {sum} Rivals\n')
 
 
 

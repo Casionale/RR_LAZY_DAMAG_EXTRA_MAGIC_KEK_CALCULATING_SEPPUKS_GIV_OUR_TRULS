@@ -21,6 +21,7 @@ with open('msql_connection_string.txt', 'r', encoding='utf-8') as f:
 engine = create_engine(DATABASE_URL)
 Session = sessionmaker(bind=engine)
 
+OUTPUT_DIR = "output"
 
 
 class App(tk.Tk):
@@ -44,12 +45,20 @@ class App(tk.Tk):
 
         # переменная для комиссии
         self.commission_var = tk.DoubleVar(value=0.0)
+        # переменная для профиля фф
+        self.profile_name_var = tk.StringVar(value='')
 
         # лейбл + текстбокс
         ttk.Label(left_frame, text="Введите процент комиссии:").pack(anchor="w", pady=(10, 0))
         self.commission_entry = ttk.Entry(left_frame, textvariable=self.commission_var)
         self.commission_entry.pack(fill="x", pady=5)
         self.commission_var.set(5)
+
+        # имя профиля
+        ttk.Label(left_frame, text="Введите имя профиля:").pack(anchor="w", pady=(10, 0))
+        self.profile_entry = ttk.Entry(left_frame, textvariable=self.profile_name_var)
+        self.profile_entry.pack(fill="x", pady=5)
+        self.profile_name_var.set('')
 
 
         # ---- центральная панель ----
@@ -97,7 +106,8 @@ class App(tk.Tk):
         commission = self.commission_var.get()
 
         DOMAIN = "rivalregions.com"
-        PROFILE = "iko8fy3f.default-release"
+        #PROFILE = "iko8fy3f.default-release"
+        PROFILE = self.profile_name_var.get()
         cookies = get_firefox_cookies_for_requests(DOMAIN, PROFILE)
 
         EXTRA_LIMIT = 30000000
@@ -109,10 +119,39 @@ class App(tk.Tk):
 
         full_result = {}
 
+
+
         for member in info:
-            result = Utils.calculate_truls_for_war(damage=info[member], id_war=order.url, price=order.price * (commission / 100),
+            result = Utils.calculate_truls_for_war(damage=info[member], id_war=order.url, price=float(order.price) * ((100 - commission) / 100),
                                                    stop_time=order.end_date.strftime("%H:%M %d.%m.%Y"), name=member)
             #ТУТ НАДО ПРИПАРКОВАТЬ РЕСАЛТ К ДМ
+
+            full_result[member] = {}
+            full_result[member]['result'] = result
+
+            for i in dm:
+                if i['name'] == member:
+                    full_result[member]['id'] = i['id']
+                    full_result[member]['damage'] = i['damage']
+
+
+        csv_text = 'Аккаунт;tg;url;Дамаг учтён.;Плата\n'
+
+        full_sum = 0
+        summ_without_commission = 0
+
+        for member in full_result:
+            full_sum += int(int(full_result[member]['result']['damage']) * order.price)
+            summ_without_commission += int(float(full_result[member]['result']['sum']))
+            csv_text += (f"{member};{'НД'};https://rivalregions.com/#slide/profile/{full_result[member]['id']};{full_result[member]['result']['damage']};"
+                         f"{int(full_result[member]['result']['sum'])}\n")
+
+        comission_sum = full_sum - summ_without_commission
+
+        with open(f"{OUTPUT_DIR}/payment_{order.url}.csv", "w", encoding="utf-8") as f:
+            f.write(csv_text)
+
+        self.log_text.insert(tk.END, f"Проверь файл {OUTPUT_DIR}/payment_{order.url}.csv")
 
         pass
 
@@ -130,6 +169,8 @@ def get_order_by_id(order_id: int):
         ).scalar_one_or_none()
     finally:
         session.close()
+
+
 
 def get_firefox_cookies_for_requests(domain: str, profile_name: str) -> dict:
     """

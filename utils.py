@@ -5,6 +5,7 @@ import sqlite3
 import threading
 import time
 from datetime import datetime
+from urllib.parse import urlparse
 
 import cloudscraper
 import dateutil
@@ -13,6 +14,7 @@ import datetime
 
 import re
 
+from StatUtils import StatUtils
 from mozDecompress import mozlz4_to_text
 
 # Куки сессии
@@ -382,20 +384,30 @@ class Bot:
 
             strip_response = response.text.replace('\n', '')
 
-            error_str = '<script>\r\n$(document).ready(function() {\r\n\twindow.location="https://rivalka.ru";\r\n\t});\r\n</script>\r\n'
-            if (error_str != response.text):
-                scraper.get({domain}, cookies=self.cookies, timeout=4)
-                Utils.log(f'Пустой список партии, перешли на {domain}')
-                print(f'Пустой список партии, перешли на {domain}')
-                time.sleep(3)
-                continue
+            error_str = '''<script>
+$(document).ready(function() {
+	window.location="https://rivalka.ru";
+	});
+</script>
+'''
+            er_str = error_str.strip()
+            r_t_str = response.text.strip()
+
+            er_str_normalized = error_str.replace('\r\n', '\n')
+            r_t_str_normalized = response.text.replace('\r\n', '\n')
 
             if response.text == '':
                 break
 
-            error_str = '<script>\r\n$(document).ready(function() {\r\n\twindow.location="https://rivalka.ru";\r\n\t});\r\n</script>\r\n'
-            if (error_str != response.text):
+            if er_str_normalized == r_t_str_normalized:
+                scraper.get(domain, cookies=self.cookies, timeout=4)
+                Utils.log(f'Пустой список партии, перешли на {domain}')
+                print(f'Пустой список партии, перешли на {domain}')
+                time.sleep(3)
+                continue
+            else:
                 is_error = False
+
 
             pattern=r'<tr(?:.|\n)*?action="slide/profile/(?P<id>\d+)(?:.|\n)*?'
             matches = re.finditer(pattern=pattern, string=strip_response)
@@ -404,6 +416,92 @@ class Bot:
                 items.append(profile_id)
         return items
 
+    def get_party_members_images(self, members):
+        scraper = cloudscraper.create_scraper(browser={'browser': 'firefox', 'platform': 'windows',
+                                                       'mobile': False})
+
+        items = {}
+
+        for member in members:
+            is_error = True
+
+            while is_error:
+                time.sleep(self.timeout)
+                Utils.log(f'Жду {self.timeout} сек')
+
+                url = f"{domain}/slide/profile/{member}"
+
+                response = scraper.get(url, cookies=self.cookies, timeout=4000)
+                Utils.log(f'Запрос на {url}')
+
+                strip_response = response.text.replace('\n', '')
+
+                error_str = '''<script>
+    $(document).ready(function() {
+        window.location="https://rivalka.ru";
+        });
+    </script>
+    '''
+                er_str = error_str.strip()
+                r_t_str = response.text.strip()
+
+                er_str_normalized = error_str.replace('\r\n', '\n')
+                r_t_str_normalized = response.text.replace('\r\n', '\n')
+
+                if response.text == '':
+                    break
+
+                if er_str_normalized == r_t_str_normalized:
+                    scraper.get(domain, cookies=self.cookies, timeout=4)
+                    Utils.log(f'Пустой профиль {domain}')
+                    print(f'Пустой профиль, перешли на {domain}')
+                    time.sleep(3)
+                    continue
+                else:
+                    is_error = False
+
+
+                pass
+                pattern= r'<img[^>]*id="p_old_pic"[^>]*src="//?([^"]+)"'
+                matches = re.finditer(pattern=pattern, string=strip_response)
+                for match in matches:
+                    avatar = match.group(1)
+                    items[member] = avatar
+            print(f"Закончен {member}")
+
+        return items
+
+    def download_image(self, url: str, save_dir: str) -> str:
+        """
+        Скачивает изображение по URL и сохраняет в указанную папку.
+        Имя файла берётся из URL. Если в URL нет схемы, добавляет https://.
+        Если файл уже существует, не скачивает заново и возвращает путь.
+        Возвращает полный путь к сохранённому файлу.
+        """
+        scraper = cloudscraper.create_scraper(browser={'browser': 'firefox', 'platform': 'windows',
+                                                       'mobile': False})
+        # добавляем схему, если её нет
+        if not url.startswith("http://") and not url.startswith("https://"):
+            url = "https:" + url if url.startswith("//") else "https://" + url
+
+        os.makedirs(save_dir, exist_ok=True)
+
+        # имя файла из URL
+        filename = os.path.basename(urlparse(url).path)
+        save_path = os.path.join(save_dir, filename)
+
+        # если файл уже есть, просто возвращаем путь
+        if os.path.exists(save_path):
+            return save_path
+
+        # скачиваем файл
+        response = scraper.get(url)
+        response.raise_for_status()
+
+        with open(save_path, "wb") as f:
+            f.write(response.content)
+
+        return save_path
 
 
 
@@ -1101,5 +1199,120 @@ class Utils:
 
         results.append(f'ИТОГО: {sum} Rivals\n')
 
+    @staticmethod
+    def kek_avatars(data, id_party=140):
+        is_error = True
+        while is_error:
+            try:
+                is_firefox_cookies = data['use_browser']
+                client = data['client']
+                if is_firefox_cookies:
+                    cookies = Utils.get_cookies(data)
+                else:
+                    cookies = Utils.get_manual_cookies(data)
+
+                bot = Bot(cookies=cookies, client=client)
+
+                #url = f'{domain}/listed/party/{id_party}'
+
+                OUTPUT_PATRY_URLS_AVATARS_DIR = "output_avatars_urls"
+
+                # создаём папку, если нет
+                if not os.path.exists(OUTPUT_PATRY_URLS_AVATARS_DIR):
+                    os.makedirs(OUTPUT_PATRY_URLS_AVATARS_DIR)
+
+                # формируем имя файла по текущей дате
+                today = datetime.datetime.now()
+                filename = f"{today.day}_{today.month}_{today.year}.json"
+                filepath = os.path.join(OUTPUT_PATRY_URLS_AVATARS_DIR, filename)
+
+                members = Utils.get_patry_member(data, 140)
+
+                # если файл с сегодняшней датой уже есть, загружаем из него
+                if os.path.exists(filepath):
+                    print('Загружаю сегодняший файл со ссылками')
+                    with open(filepath, "r", encoding="utf-8") as f:
+                        info = json.load(f)
+                else:
+                    # иначе выполняем получение данных
+                    print('Собираю ссылки снова')
+
+                    info = bot.get_party_members_images(members=members)
+
+                    # сохраняем в файл
+                    with open(filepath, "w", encoding="utf-8") as f:
+                        json.dump(info, f, ensure_ascii=False, indent=4)
+                        print(f'Файл со ссылками был сохранён {filepath}')
+
+                avatars = {}
+
+                for i in info:
+                    file_path = bot.download_image(info[i], f'{OUTPUT_PATRY_URLS_AVATARS_DIR}/outputs')
+                    avatars[i]=file_path
+                    print(f'Скачал {file_path}')
+
+                avatar_check_result = {}
+
+                for a in avatars:
+                    result = Utils.check_pixels(avatars[a], "config_points.json", success_percent=50)
+                    avatar_check_result[a]=result
+
+                csv_result = f'account; tg; uri; result\n'
+
+                for m in members:
+                    try:
+                        account = StatUtils.get_account_by_url(m)
+                        if account is None:
+                            csv_result += f"-; -; {m}; {avatar_check_result[m]}\n"
+                        else:
+                            csv_result += f"{account.name}; {account.tg}; {m}; {avatar_check_result[m]}\n"
+                    except Exception as e:
+                        pass
 
 
+                filename = f"AVATAR CHECK {today.day}_{today.month}_{today.year}.csv"
+                filepath = os.path.join(OUTPUT_PATRY_URLS_AVATARS_DIR, filename)
+
+                with open(filepath, "w", encoding="utf-8") as f:
+                    f.write(csv_result)
+                    print(f'Файл результата был сохранён {filepath}')
+
+                is_error = False
+            except Exception as e:
+                Utils.log(f'Исключение {e}')
+                print('Новая попытка чекать авы')
+
+
+
+    @staticmethod
+    def check_pixels(image_path: str, config_path: str, success_percent: float = 80) -> bool:
+        """
+        Проверяет пиксели на изображении.
+
+        image_path - путь к изображению
+        config_path - путь к JSON конфигу
+        success_percent - процент совпадений для успеха
+        """
+        with open(config_path, "r", encoding="utf-8") as f:
+            config = json.load(f)
+
+        from PIL import Image
+
+        img = Image.open(image_path).convert("RGBA")
+        width, height = img.size
+
+        total_points = 0
+        matched_points = 0
+
+        for color_name, color_info in config.items():
+            target_r, target_g, target_b = tuple(int(color_info["color"][i:i + 2], 16) for i in (1, 3, 5))
+            target_alpha = int(color_info["alpha"] * 255)
+            for x, y in color_info["points"]:
+                total_points += 1
+                if 0 <= x < width and 0 <= y < height:
+                    r, g, b, a = img.getpixel((x, y))
+                    if (r, g, b, a) == (target_r, target_g, target_b, target_alpha):
+                        matched_points += 1
+
+        actual_percent = (matched_points / total_points) * 100 if total_points else 0
+        return actual_percent >= success_percent

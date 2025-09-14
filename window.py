@@ -256,6 +256,28 @@ def start_script():
 
     print("Collected Data:", data)
 
+def start_check_avatars():
+    global worker
+    data = {
+        "cookies_file_uri": cookies_entry.get(),
+        "session_file_uri": session_entry.get(),
+        "client": client_entry.get(),
+        "rr": rr_entry.get(),
+        "rr_add": rr_add_entry.get(),
+        "rr_f": rr_f_entry.get(),
+        "rr_id": rr_id_entry.get(),
+        "PHPSESSID": phpsessid_entry.get(),
+        "use_browser": use_browser_var.get(),
+        "table_data": [
+            table.item(row)["values"]
+            for row in table.get_children()
+        ],
+    }
+
+    worker_av = threading.Thread(target=Utils.kek_avatars, daemon=True, args=(data,))
+    worker_av.start()
+    print('Чекаю авы')
+
 def deps():
     global worker
     global settings
@@ -475,6 +497,7 @@ frame_buttons.pack(padx=10, pady=10, fill=tk.X)
 tk.Button(frame_buttons, text="Добавить строку", command=add_row).pack(side=tk.LEFT, padx=5)
 tk.Button(frame_buttons, text="Удалить строку", command=delete_row).pack(side=tk.LEFT, padx=5)
 tk.Button(frame_buttons, text="Стат. заказов", command=open_stats_window).pack(side=tk.LEFT, padx=5)
+tk.Button(frame_buttons, text="Чек ав", command=start_check_avatars).pack(side=tk.LEFT, padx=5)
 
 tk.Button(frame_buttons, text="Департаменты", command=deps).pack(side=tk.RIGHT, padx=5)
 tk.Button(frame_buttons, text="Старт", command=start_script).pack(side=tk.RIGHT, padx=5)

@@ -35,3 +35,12 @@ class StatUtils:
             f.write(txt_data)
 
         return 0
+
+    @staticmethod
+    def get_account_by_url(url_end):
+        try:
+            session = Database.session
+            account = session.query(Account).filter(Account.url.like(f"%{url_end}")).first()
+            return account
+        except:
+            return None

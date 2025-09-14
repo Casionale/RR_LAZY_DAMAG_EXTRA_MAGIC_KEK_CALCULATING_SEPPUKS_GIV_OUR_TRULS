@@ -1,5 +1,7 @@
+import base64
 import csv
 import json
+import mimetypes
 import os
 import sqlite3
 import threading
@@ -1221,6 +1223,9 @@ class Utils:
                 if not os.path.exists(OUTPUT_PATRY_URLS_AVATARS_DIR):
                     os.makedirs(OUTPUT_PATRY_URLS_AVATARS_DIR)
 
+                if not os.path.exists(f"{OUTPUT_PATRY_URLS_AVATARS_DIR}/outputs/saved"):
+                    os.makedirs(f"{OUTPUT_PATRY_URLS_AVATARS_DIR}/outputs/saved")
+
                 # формируем имя файла по текущей дате
                 today = datetime.datetime.now()
                 filename = f"{today.day}_{today.month}_{today.year}.json"
@@ -1252,10 +1257,15 @@ class Utils:
                     print(f'Скачал {file_path}')
 
                 avatar_check_result = {}
+                saved_imgs = {}
 
                 for a in avatars:
-                    result = Utils.check_pixels(avatars[a], "config_points.json", success_percent=50)
+                    result, percent, saved_img = Utils.check_and_mark_pixels(image_path=avatars[a],
+                                                                    config_path="config_points.json",
+                                                           save_dir=f"{OUTPUT_PATRY_URLS_AVATARS_DIR}/outputs/saved",
+                                                           success_percent=75)
                     avatar_check_result[a]=result
+                    saved_imgs[a]=saved_img
 
                 csv_result = f'account; tg; uri; result\n'
 
@@ -1277,42 +1287,105 @@ class Utils:
                     f.write(csv_result)
                     print(f'Файл результата был сохранён {filepath}')
 
+                Utils.make_html_gallery(f"{OUTPUT_PATRY_URLS_AVATARS_DIR}/outputs/saved")
+
                 is_error = False
             except Exception as e:
                 Utils.log(f'Исключение {e}')
                 print('Новая попытка чекать авы')
 
-
-
     @staticmethod
-    def check_pixels(image_path: str, config_path: str, success_percent: float = 80) -> bool:
+    def check_and_mark_pixels(image_path: str, config_path: str, save_dir: str,
+                              success_percent: float = 80, color_tolerance: float = 25):
         """
-        Проверяет пиксели на изображении.
+        Проверяет пиксели на изображении с гибкой погрешностью и создает копию с отмеченными точками.
 
         image_path - путь к изображению
         config_path - путь к JSON конфигу
+        save_dir - папка для сохранения копии
         success_percent - процент совпадений для успеха
+        color_tolerance - допустимое отклонение цвета в процентах от целевой компоненты (0-100)
+
+        Возвращает tuple: (успех: bool, процент совпадений: float, путь к копии изображения)
         """
+        import json
+        import os
+        from PIL import Image
+
+        # создаём папку для копии
+        os.makedirs(save_dir, exist_ok=True)
+
         with open(config_path, "r", encoding="utf-8") as f:
             config = json.load(f)
 
-        from PIL import Image
-
         img = Image.open(image_path).convert("RGBA")
+        marked_img = img.copy()  # копия для разметки
+
         width, height = img.size
 
         total_points = 0
         matched_points = 0
 
+        def is_color_similar(rgba1, rgba2, tolerance_percent):
+            for c_pixel, c_target in zip(rgba1, rgba2):
+                allowed_diff = c_target * (tolerance_percent / 100)
+                if abs(c_pixel - c_target) > allowed_diff:
+                    return False
+            return True
+
         for color_name, color_info in config.items():
             target_r, target_g, target_b = tuple(int(color_info["color"][i:i + 2], 16) for i in (1, 3, 5))
             target_alpha = int(color_info["alpha"] * 255)
+            target_rgba = (target_r, target_g, target_b, target_alpha)
+
             for x, y in color_info["points"]:
                 total_points += 1
                 if 0 <= x < width and 0 <= y < height:
-                    r, g, b, a = img.getpixel((x, y))
-                    if (r, g, b, a) == (target_r, target_g, target_b, target_alpha):
+                    pixel_rgba = img.getpixel((x, y))
+                    if is_color_similar(pixel_rgba, target_rgba, color_tolerance):
                         matched_points += 1
+                    # отмечаем точку ярко-красным
+                    marked_img.putpixel((x, y), (255, 0, 0, 255))
 
         actual_percent = (matched_points / total_points) * 100 if total_points else 0
-        return actual_percent >= success_percent
+
+        # формируем путь для сохранения копии
+        filename = os.path.basename(image_path)
+        save_path = os.path.join(save_dir, f'{int(actual_percent)}%_{filename}')
+        marked_img.save(save_path)
+
+        success = actual_percent >= success_percent
+        return success, actual_percent, save_path
+
+    import base64
+    import mimetypes
+    @staticmethod
+    def make_html_gallery(folder: str):
+        # фильтруем только изображения
+        exts = (".png", ".jpg", ".jpeg", ".gif")
+        images = [f for f in os.listdir(folder) if f.lower().endswith(exts)]
+
+        html_parts = [
+            "<!DOCTYPE html>",
+            "<html><head><meta charset='utf-8'><title>Gallery</title>",
+            "<style>body{font-family:sans-serif; background-color: black;} .grid{display:grid;grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));gap:10px;} img{max-width:100%;height:auto;}"
+            "img{border-width: 1px;border-color: blue;border-style: outset;}</style>",
+            "</head><body><div class='grid'>"
+        ]
+
+        for fname in images:
+            path = os.path.join(folder, fname)
+            mime, _ = mimetypes.guess_type(path)
+            if not mime:
+                continue
+            with open(path, "rb") as f:
+                b64 = base64.b64encode(f.read()).decode("utf-8")
+            html_parts.append(f"<div style='color: wheat;'><img src='data:{mime};base64,{b64}' alt='{fname}'>{fname[:fname.index('_')]}</div>")
+
+        html_parts.append("</div></body></html>")
+
+        save_path = os.path.join(folder, "index.html")
+        with open(save_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(html_parts))
+
+        return save_path

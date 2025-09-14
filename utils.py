@@ -221,7 +221,7 @@ class Bot:
     def get_list_damage_from_war_party_members(self, id, is_attack, id_party):
         is_error = True
         while is_error:
-            is_attack = 0 if is_attack else 1
+            is_attack = 0 if is_attack == "True" else 1
             url = f'{domain}/war/damageparties/{id}/{is_attack}/{id_party}?c={self.client}'
             damages = self.get_damage_members(url)
             if type(damages) is not list or len(damages) == 0:
@@ -486,7 +486,7 @@ class Utils:
             stop_time = int(datetime.datetime.strptime(stop_time, "%H:%M %d.%m.%Y").timestamp())
         for dmg in damage:
             if dmg['stamp'] <= stop_time:
-                if dmg['id_war'] == id_war:
+                if int(dmg['id_war']) == id_war:
                     add_sum = int(dmg['damage']) * price
                     sum += add_sum
                     sum_damage += int(dmg['damage'])
@@ -1039,6 +1039,7 @@ class Utils:
         is_error = True
         while is_error:
             try:
+                is_attacks = "False" if not is_attacks else "True"
                 damage_members = bot.get_list_damage_from_war_party_members(ids, is_attacks, id_party)
                 is_error = False
             except Exception as e:

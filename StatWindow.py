@@ -5,6 +5,7 @@ from tkinter import ttk
 
 from Models import Database, AccountInOrder, Order, Account, Payment
 from StatUtils import StatUtils
+from sqlalchemy import func
 
 
 class OrderStatsWindow:
@@ -211,7 +212,7 @@ class OrderStatsWindow:
 
         try:
             for member in content:
-                account = session.query(Account).filter_by(name=member[0]).first()
+                account = session.query(Account).filter(func.lower(Account.url).like(f"%{member[0].lower()}%")).first()
                 order = session.query(Order).filter_by(name=order_name).first()
 
                 new_account_in_order = AccountInOrder(account_id=account.id, order_id=order.id, damage=float(member[1]))

@@ -652,7 +652,8 @@ class Utils:
 
 
             for member in damage_members:
-                if member['name'] not in un_unic_damage:
+                # ТУТОВА БЕДА С НЕЙМАМИ
+                if member['id'] not in un_unic_damage:
                     attacks = []
 
                     url_damage = f'{domain}/slide/damage/{member["id"]}'
@@ -672,10 +673,10 @@ class Utils:
                         else:
                             is_more_need = False
 
-                    if member['name'] in un_unic_damage:
-                        un_unic_damage[member['name']].extend(attacks)
+                    if member['id'] in un_unic_damage: # БЕДА С ИМЕНАМИ
+                        un_unic_damage[member['id']].extend(attacks)
                     else:
-                        un_unic_damage[member['name']] = [attacks]
+                        un_unic_damage[member['id']] = [attacks]
                 print(f'Законечена загрузка урона {member["name"]}')
                 Utils.log(f'Законечена загрузка урона {member["name"]}')
 
@@ -710,7 +711,7 @@ class Utils:
                     csv_file_data += f'{m};{result["damage"]};\n'
                     no_pay_data += f'{m:<40}: {result["no_pay"]}\n'
 
-                    id = next(item for item in damage_members if item["name"] == m)
+                    id = next(item for item in damage_members if item["id"] == m)
                     csv_file_data_2 += f'{m};{result["damage"]};{domain}/#slide/profile/{id["id"]};\n'
 
             results.append(f'ИТОГО: {sum} Rivals\n')

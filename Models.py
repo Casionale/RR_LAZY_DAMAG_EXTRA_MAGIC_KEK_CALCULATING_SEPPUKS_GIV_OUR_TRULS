@@ -12,6 +12,7 @@ class Account(Base):
     name = Column(String)
     tg = Column(String)
     url = Column(String)
+    payable = Column(Boolean, nullable=False, default=False)
 
 class Order(Base):
     __tablename__ = 'orders'

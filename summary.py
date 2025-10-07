@@ -4,6 +4,9 @@ import csv
 import os
 from collections import defaultdict
 
+from Models import Database, Account
+
+
 def process_csv_files(file_paths):
     grouped_data = defaultdict(list)
 
@@ -27,7 +30,8 @@ def process_csv_files(file_paths):
     # Формируем табличный вывод с табуляцией
     output = []
     for tg, entries in grouped_data.items():
-        output.append(f"{tg}\t{entries[0]['url']}")
+        url_by_tg = get_payment_acc_ny_tg(tg)
+        output.append(f"{tg}\t{ url_by_tg if url_by_tg is not None else entries[0]['url'] }")
         output.append("Файл\tАккаунт\tПлата")
         for entry in entries:
             output.append(f"{entry['filename']}\t{entry['account']}\t{entry['payment']}")
@@ -51,6 +55,13 @@ def copy_to_clipboard():
     root.clipboard_clear()
     root.clipboard_append(data)
     messagebox.showinfo("Готово", "Результат скопирован в буфер обмена!\nВставь в Excel или Google Таблицы.")
+
+def get_payment_acc_ny_tg(tg):
+    account = Database.session.query(Account).filter_by(tg=tg, payable=True).first()
+    if account is None:
+        return None
+    return account.url
+
 
 # Создание окна
 root = tk.Tk()

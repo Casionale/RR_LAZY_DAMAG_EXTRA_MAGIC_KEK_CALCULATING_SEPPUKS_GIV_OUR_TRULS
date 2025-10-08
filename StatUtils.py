@@ -44,3 +44,14 @@ class StatUtils:
             return account
         except:
             return None
+
+    @staticmethod
+    def set_avatar_account_by_id(account_id, value):
+        try:
+            session = Database.session
+            account = session.query(Account).filter(Account.id == account_id).first()
+            account.avatar = value
+            session.flush()
+            session.commit()
+        except:
+            return None

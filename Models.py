@@ -13,6 +13,7 @@ class Account(Base):
     tg = Column(String)
     url = Column(String)
     payable = Column(Boolean, nullable=False, default=False)
+    avatar = Column(Boolean, nullable=False, default=0)
 
 class Order(Base):
     __tablename__ = 'orders'

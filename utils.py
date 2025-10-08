@@ -1019,11 +1019,22 @@ class Utils:
         return result_work
 
     @staticmethod
-    def get_patry_member(settings, id_party):
-        cookies = Utils.get_cookies(settings)
+    def get_patry_member(settings, id_party, cookies):
+        if cookies is None:
+            cookies = Utils.get_cookies(settings)
         bot = Bot(cookies=cookies, client=client)
         url = f'{domain}/listed/party/{id_party}'
-        members = bot.get_party_member(url)
+        members = []
+        is_error = True
+        i = 0
+        while is_error:
+            next_url = f"{url}" if i == 0 else f"{url}/{i*60}"
+            i += 1
+            list_60 = bot.get_party_member(next_url)
+            if len(list_60) != 0:
+                members.extend(list_60)
+            else:
+                is_error = False
         return members
 
 
@@ -1232,7 +1243,7 @@ class Utils:
                 filename = f"{today.day}_{today.month}_{today.year}.json"
                 filepath = os.path.join(OUTPUT_PATRY_URLS_AVATARS_DIR, filename)
 
-                members = Utils.get_patry_member(data, 140)
+                members = Utils.get_patry_member(data, 140, cookies=cookies)
 
                 # если файл с сегодняшней датой уже есть, загружаем из него
                 if os.path.exists(filepath):
@@ -1277,6 +1288,8 @@ class Utils:
                             csv_result += f"-; -; {m}; {avatar_check_result[m]}\n"
                         else:
                             csv_result += f"{account.name}; {account.tg}; {m}; {avatar_check_result[m]}\n"
+                            StatUtils.set_avatar_account_by_id(account.id, avatar_check_result[m])
+
                     except Exception as e:
                         pass
 
@@ -1291,9 +1304,20 @@ class Utils:
                 Utils.make_html_gallery(f"{OUTPUT_PATRY_URLS_AVATARS_DIR}/outputs/saved")
 
                 is_error = False
+
+                dirpath = f"{OUTPUT_PATRY_URLS_AVATARS_DIR}/outputs/saved"
+                dirpath2 = f"{OUTPUT_PATRY_URLS_AVATARS_DIR}/outputs/"
+                Utils.delete_files([dirpath, dirpath2], [".png"])
             except Exception as e:
                 Utils.log(f'Исключение {e}')
                 print('Новая попытка чекать авы')
+
+    @staticmethod
+    def delete_files(dirs, exts):
+        for d in dirs:
+            for f in os.listdir(d):
+                if f.endswith(tuple(exts)):
+                    os.remove(os.path.join(d, f))
 
     @staticmethod
     def check_and_mark_pixels(image_path: str, config_path: str, save_dir: str,

@@ -17,6 +17,7 @@ import datetime
 import re
 
 from StatUtils import StatUtils
+from check import checking_avatars_by_model
 from mozDecompress import mozlz4_to_text
 
 # Куки сессии
@@ -1214,7 +1215,7 @@ class Utils:
         results.append(f'ИТОГО: {sum} Rivals\n')
 
     @staticmethod
-    def kek_avatars(data, id_party=140):
+    def kek_avatars(data, id_party=140, legacy=False):
         is_error = True
         while is_error:
             try:
@@ -1272,12 +1273,20 @@ class Utils:
                 saved_imgs = {}
 
                 for a in avatars:
-                    result, percent, saved_img = Utils.check_and_mark_pixels(image_path=avatars[a],
-                                                                    config_path="config_points.json",
-                                                           save_dir=f"{OUTPUT_PATRY_URLS_AVATARS_DIR}/outputs/saved",
-                                                           success_percent=75)
-                    avatar_check_result[a]=result
-                    saved_imgs[a]=saved_img
+                    if legacy:
+                        result, percent, saved_img = Utils.check_and_mark_pixels(image_path=avatars[a],
+                                                                        config_path="config_points.json",
+                                                               save_dir=f"{OUTPUT_PATRY_URLS_AVATARS_DIR}/outputs/saved",
+                                                               success_percent=75)
+                        avatar_check_result[a]=result
+                        saved_imgs[a]=saved_img
+                    else:
+                        prob, pred, saved_img = checking_avatars_by_model(avatars[a],
+                                                                          save_dir=f"{OUTPUT_PATRY_URLS_AVATARS_DIR}/outputs/saved",
+                                                                          alpha=0.2,
+                                                                          output_size=(200, 200))
+                        avatar_check_result[a] = True if pred == 0 else False
+                        saved_imgs[a] = saved_img
 
                 csv_result = f'account; tg; uri; result\n'
 

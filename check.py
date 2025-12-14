@@ -8,6 +8,7 @@ from skimage.exposure import exposure
 from skimage.feature import hog
 from skimage import color
 import sys
+import sklearn
 
 def extract_features(path):
     try:

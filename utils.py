@@ -1,4 +1,5 @@
 import base64
+import builtins
 import csv
 import json
 import mimetypes
@@ -13,9 +14,11 @@ import cloudscraper
 import dateutil
 from bs4 import BeautifulSoup
 import datetime
+from functools import lru_cache
 
 import re
 
+from Models import Database, Account
 from StatUtils import StatUtils
 from check import checking_avatars_by_model
 from mozDecompress import mozlz4_to_text
@@ -411,12 +414,84 @@ $(document).ready(function() {
             else:
                 is_error = False
 
-
             pattern=r'<tr(?:.|\n)*?action="slide/profile/(?P<id>\d+)(?:.|\n)*?'
             matches = re.finditer(pattern=pattern, string=strip_response)
             for match in matches:
                 profile_id = match.group("id")
                 items.append(profile_id)
+
+        return items
+
+    def get_party_member_names(self, url):
+        scraper = cloudscraper.create_scraper(browser={'browser': 'firefox', 'platform': 'windows',
+                                                       'mobile': False})
+        is_error = True
+        items = []
+
+        while is_error:
+            time.sleep(self.timeout)
+            Utils.log(f'Жду {self.timeout} сек')
+            response = scraper.get(url, cookies=self.cookies, timeout=4000)
+            Utils.log(f'Запрос на {url}')
+
+            strip_response = response.text.replace('\n', '')
+
+            error_str = '''<script>
+$(document).ready(function() {
+    window.location="https://rivalka.ru";
+    });
+</script>
+'''
+            er_str = error_str.strip()
+            r_t_str = response.text.strip()
+
+            er_str_normalized = error_str.replace('\r\n', '\n')
+            r_t_str_normalized = response.text.replace('\r\n', '\n')
+
+            if response.text == '':
+                break
+
+            if er_str_normalized == r_t_str_normalized:
+                scraper.get(domain, cookies=self.cookies, timeout=4)
+                Utils.log(f'Пустой список партии, перешли на {domain}')
+                print(f'Пустой список партии, перешли на {domain}')
+                time.sleep(3)
+                continue
+            else:
+                is_error = False
+
+            profile_id = ''
+            profile_name = ''
+
+
+            soup = BeautifulSoup(strip_response, "html.parser")
+
+            for tr in soup.find_all("tr", {"class": "list_link"}):
+                td_profile = tr.find("td", {"class": "list_name"})
+                td_avatar = tr.find("td", {"class": "list_avatar"})
+
+                # Извлекаем ID
+                profile_id = None
+                for td in tr.find_all("td", action=True):
+                    if "slide/profile/" in td["action"]:
+                        profile_id = td["action"].split("/")[-1]
+                        break
+
+                # Имя профиля: только текст ДО блока .additional
+                profile_name = None
+                if td_profile:
+                    div = td_profile.find("div")
+                    if div:
+                        # Удаляем внутренний блок .additional
+                        additional = div.find("div", class_="additional")
+                        if additional:
+                            additional.decompose()
+                        # Очищаем лишние символы и галочки
+                        profile_name = div.get_text(" ", strip=True).split("✔")[0].strip()
+
+                if profile_id and profile_name:
+                    items.append((profile_id, profile_name))
+
         return items
 
     def get_party_members_images(self, members):
@@ -432,7 +507,7 @@ $(document).ready(function() {
                 time.sleep(self.timeout)
                 Utils.log(f'Жду {self.timeout} сек')
 
-                url = f"{domain}/slide/profile/{member}"
+                url = f"{domain}/slide/profile/{member[0]}"
 
                 response = scraper.get(url, cookies=self.cookies, timeout=4000)
                 Utils.log(f'Запрос на {url}')
@@ -469,8 +544,8 @@ $(document).ready(function() {
                 matches = re.finditer(pattern=pattern, string=strip_response)
                 for match in matches:
                     avatar = match.group(1)
-                    items[member] = avatar
-            print(f"Закончен {member}")
+                    items[member[0]] = avatar
+            print(f"Закончен {member[0]}")
 
         return items
 
@@ -578,7 +653,7 @@ class Utils:
 
     @staticmethod
     def calculate_truls_for_war(damage, id_war, price, stop_time, name = ''):
-        damage = damage[0]
+        #damage = damage[0]
         sum = 0
         sum_damage = 0
         no_pay_sum = 0
@@ -598,6 +673,7 @@ class Utils:
             else:
                 if int(dmg['id_war']) == id_war:
                     no_pay_sum += int(dmg['damage']) * price
+
 
         str_check += f'ИТОГО: {sum} | Не оплачиваемая сумма {no_pay_sum}\n\n'
 
@@ -646,40 +722,55 @@ class Utils:
             while is_error:
                 try:
                     damage_members = bot.get_list_damage_from_war_party_members(ids[i], is_attacks[i], id_party)
+                    wrong_damage_members = bot.get_list_damage_from_war_party_members(ids[i], not is_attacks[i], id_party)
                     is_error = False
                 except Exception as e:
                     pass
 
 
 
+            negative_tg = []
+            with open("negative_tg.txt", 'r') as f:
+                negative_tg = [line.strip() for line in f]
+
+            negative_ids = []
+
+            for tg in negative_tg:
+                accounts = Database.session.query(Account).filter_by(tg=tg).all()
+                for account in accounts:
+                    negative_ids.append(account.url.split('/')[-1])
+
             for member in damage_members:
+                if member['id'] not in negative_ids:
                 # ТУТОВА БЕДА С НЕЙМАМИ
-                if member['id'] not in un_unic_damage:
-                    attacks = []
+                    if member['id'] not in un_unic_damage:
 
-                    url_damage = f'{domain}/slide/damage/{member["id"]}'
+                        attacks = []
 
-                    is_more_need = True
-                    iters = 0
-                    while is_more_need:
-                        if iters == 0:
-                            part_damage = bot.get_damage(url_damage) # Нада таво етаво по 60
+                        url_damage = f'{domain}/slide/damage/{member["id"]}'
+
+                        is_more_need = True
+                        iters = 0
+                        while is_more_need:
+                            if iters == 0:
+                                part_damage = bot.get_damage(url_damage) # Нада таво етаво по 60
+                            else:
+                                part_damage = bot.get_damage(f'{url_damage}/{60 * iters}')
+
+                            if part_damage is not None and len(part_damage) > 0:
+                                for d in part_damage:
+                                    attacks.append(d)
+                                iters += 1
+                            else:
+                                is_more_need = False
+
+                        if member['id'] in un_unic_damage: # БЕДА С ИМЕНАМИ
+                            un_unic_damage[member['id']].extend(attacks)
                         else:
-                            part_damage = bot.get_damage(f'{url_damage}/{60 * iters}')
+                            un_unic_damage[member['id']] = [attacks]
 
-                        if part_damage is not None and len(part_damage) > 0:
-                            for d in part_damage:
-                                attacks.append(d)
-                            iters += 1
-                        else:
-                            is_more_need = False
-
-                    if member['id'] in un_unic_damage: # БЕДА С ИМЕНАМИ
-                        un_unic_damage[member['id']].extend(attacks)
-                    else:
-                        un_unic_damage[member['id']] = [attacks]
-                print(f'Законечена загрузка урона {member["name"]}')
-                Utils.log(f'Законечена загрузка урона {member["name"]}')
+                    print(f'Законечена загрузка урона {member["name"]}')
+                    Utils.log(f'Законечена загрузка урона {member["name"]}')
 
             results.append(f'Война {ids[i]}')
 
@@ -691,14 +782,51 @@ class Utils:
 
             all_damage_sorted_by_stamp = Utils.get_all_attack_sorted_by_stamp(un_unic_damage)
 
+
+            #Удаляем записи неправильного урона
+            for w in wrong_damage_members:
+                owner_id = w['id']
+                target_sum = int(w['damage'])
+
+                owner_items = [
+                    x for x in all_damage_sorted_by_stamp
+                    if x['owner'] == owner_id
+                ]
+
+                to_remove = Utils.find_subset_exact(owner_items, target_sum)
+
+                if not to_remove:
+                    continue
+
+                new_items = []
+
+                for item in all_damage_sorted_by_stamp:
+                    if item not in to_remove:
+                        new_items.append(item)
+                    else:
+                        pass
+
+                all_damage_sorted_by_stamp = new_items
+
             #Если по лимиту
             if is_limit[i] == 'True':
                 new_stop_at = Utils.get_stop_at_by_limit(all_damage_sorted_by_stamp, limit[i], ids[i])
                 stop_at[i] = new_stop_at
 
+            grouped = {}
+
+            for item in all_damage_sorted_by_stamp:
+                owner = item['owner']
+                grouped.setdefault(owner, []).append(item)
+
+            un_unic_damage = grouped
+
             #ТУТ ВСЁ УЖЕ ДОЛЖНО БЫТЬ ИЗВЕСТНО!
 
+
+
             for member in un_unic_damage:
+
                 result = Utils.calculate_truls_for_war(un_unic_damage[member], ids[i], prices[i], stop_at[i], member)
                 if result['damage'] > 0:
                     #results.append(f'{member["name"]:<30}: {result["sum"]:<15} Rivals')
@@ -740,6 +868,100 @@ class Utils:
         f.close()
 
         print('Готово! Рассмотри файлы Money.txt, ResultLogs.txt и csv файлы с уроном.')
+
+    @staticmethod
+    def find_subset_exact(items, target):
+        try:
+            # damage уже int
+            if not items or target <= 0:
+                return None
+
+            # 1️⃣ ранние записи
+            res = Utils.try_prefix(items, target)
+            if res:
+                return res
+
+            # 2️⃣ поздние записи
+            res = Utils.try_suffix(items, target)
+            if res:
+                return res
+
+            # 3️⃣ жадный
+            res = Utils.try_greedy(items, target)
+            if res:
+                return res
+
+            # 4️⃣ тяжёлый поиск
+            items = sorted(items, key=lambda x: x['damage'], reverse=True)
+            n = len(items)
+
+            suffix_sum = [0] * (n + 1)
+            for i in range(n - 1, -1, -1):
+                suffix_sum[i] = suffix_sum[i + 1] + items[i]['damage']
+
+            result = []
+
+            def dfs(i, remaining):
+                if remaining == 0:
+                    return True
+                if i == n or remaining < 0:
+                    return False
+                if remaining > suffix_sum[i]:
+                    return False
+
+                result.append(items[i])
+                if dfs(i + 1, remaining - int(items[i]['damage'])):
+                    return True
+                result.pop()
+
+                return dfs(i + 1, remaining)
+
+            if dfs(0, target):
+                return result
+            return None
+
+        except Exception as e:
+            print(e)
+            return None
+
+    @staticmethod
+    def try_greedy(items, target):
+        items = sorted(items, key=lambda x: x['damage'], reverse=True)
+        s = 0
+        result = []
+        for x in items:
+            if s + int(x['damage']) <= target:
+                s += int(x['damage'])
+                result.append(x)
+            if s == target:
+                return result
+        return None
+
+    @staticmethod
+    def try_suffix(items, target):
+        s = 0
+        result = []
+        for x in reversed(items):
+            s += int(x['damage'])
+            result.append(x)
+            if s == target:
+                return result
+            if s > target:
+                return None
+        return None
+
+    @staticmethod
+    def try_prefix(items, target):
+        s = 0
+        result = []
+        for x in items:
+            s += int(x['damage'])
+            result.append(x)
+            if s == target:
+                return result
+            if s > target:
+                return None
+        return None
 
     @staticmethod
     def get_cookies(settings):
@@ -1020,7 +1242,7 @@ class Utils:
         return result_work
 
     @staticmethod
-    def get_patry_member(settings, id_party, cookies):
+    def get_patry_member(settings, id_party, cookies, with_nams = False):
         if cookies is None:
             cookies = Utils.get_cookies(settings)
         bot = Bot(cookies=cookies, client=client)
@@ -1031,7 +1253,10 @@ class Utils:
         while is_error:
             next_url = f"{url}" if i == 0 else f"{url}/{i*60}"
             i += 1
-            list_60 = bot.get_party_member(next_url)
+            if not with_nams:
+                list_60 = bot.get_party_member(next_url)
+            else:
+                list_60 = bot.get_party_member_names(next_url)
             if len(list_60) != 0:
                 members.extend(list_60)
             else:
@@ -1130,6 +1355,7 @@ class Utils:
             is_limit = order_data[5]
 
             try:
+
                 return Utils.new_sums_per_member_from_wars_witch_stop_word(Bot(cookies=cookies, client=client), ids,
                                                                           is_attacks,
                                                                           prices, id_party, stop_at, limit, is_limit)
@@ -1244,7 +1470,7 @@ class Utils:
                 filename = f"{today.day}_{today.month}_{today.year}.json"
                 filepath = os.path.join(OUTPUT_PATRY_URLS_AVATARS_DIR, filename)
 
-                members = Utils.get_patry_member(data, 140, cookies=cookies)
+                members = Utils.get_patry_member(data, 140, cookies=cookies, with_nams=True)
 
                 # если файл с сегодняшней датой уже есть, загружаем из него
                 if os.path.exists(filepath):
@@ -1292,12 +1518,13 @@ class Utils:
 
                 for m in members:
                     try:
-                        account = StatUtils.get_account_by_url(m)
+                        account = StatUtils.get_account_by_url(m[0])
                         if account is None:
-                            csv_result += f"-; -; {m}; {avatar_check_result[m]}\n"
+                            csv_result += f"-; -; {m[0]}; {avatar_check_result[m[0]]}\n"
                         else:
-                            csv_result += f"{account.name}; {account.tg}; {m}; {avatar_check_result[m]}\n"
-                            StatUtils.set_avatar_account_by_id(account.id, avatar_check_result[m])
+                            csv_result += f"{account.name}; {account.tg}; {m[0]}; {avatar_check_result[m[0]]}\n"
+                            StatUtils.set_avatar_account_by_id(account.id, avatar_check_result[m[0]])
+                            StatUtils.set_name_account_by_id(account.id, m[1])
 
                     except Exception as e:
                         pass

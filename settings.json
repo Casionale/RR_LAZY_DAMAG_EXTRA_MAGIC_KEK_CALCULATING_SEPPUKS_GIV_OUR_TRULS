@@ -1,0 +1,129 @@
+{
+    "cookies_file_uri": "C:/Users/Admin/AppData/Roaming/Mozilla/Firefox/Profiles/9zr30oq8.default-release/cookies.sqlite",
+    "session_file_uri": "C:/Users/Admin/AppData/Roaming/Mozilla/Firefox/Profiles/9zr30oq8.default-release/sessionstore-backups/previous.jsonlz4",
+    "client": "c2a2c96cdff39de636f0f4cee7debb41",
+    "rr": "502d9f9af359ce43dab8078241f59b86",
+    "rr_add": "7fafb499a127da105ab1c60c23ec9f48",
+    "rr_f": "d32d51fe8f14d2d80805c6990fbc10db",
+    "rr_id": "118234939",
+    "PHPSESSID": "jhu7eitebcmub3ab5mfjj0lcg5",
+    "use_browser": false,
+    "table_data": [
+        [
+            703974,
+            "True",
+            7600,
+            140,
+            "23:59 14.12.2025",
+            "1500kk",
+            "True"
+        ]
+    ],
+    "deps_table": [
+        {
+            "\u043d\u0430\u0447\u0430\u043b\u043e": "26.01.25 20:48",
+            "\u043a\u043e\u043d\u0435\u0446": "02.02.25 20:48",
+            "\u043b\u0438\u043c\u0438\u0442": 1500,
+            "id": 4289,
+            "\u0446\u0435\u043d\u0430": 3000000000,
+            "\u0447\u0435\u043a\u0431\u043e\u043a\u0441\u044b": [
+                false,
+                false,
+                true,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false
+            ],
+            "\u043f\u0430\u0440\u0442\u0438\u044f": "140"
+        },
+        {
+            "\u043d\u0430\u0447\u0430\u043b\u043e": "26.01.25 20:48",
+            "\u043a\u043e\u043d\u0435\u0446": "02.02.25 20:48",
+            "\u043b\u0438\u043c\u0438\u0442": 0,
+            "id": 0,
+            "\u0446\u0435\u043d\u0430": 0,
+            "\u0447\u0435\u043a\u0431\u043e\u043a\u0441\u044b": [
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false
+            ],
+            "\u043f\u0430\u0440\u0442\u0438\u044f": "140"
+        },
+        {
+            "\u043d\u0430\u0447\u0430\u043b\u043e": "26.01.25 20:48",
+            "\u043a\u043e\u043d\u0435\u0446": "02.02.25 20:48",
+            "\u043b\u0438\u043c\u0438\u0442": 0,
+            "id": 0,
+            "\u0446\u0435\u043d\u0430": 0,
+            "\u0447\u0435\u043a\u0431\u043e\u043a\u0441\u044b": [
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false
+            ],
+            "\u043f\u0430\u0440\u0442\u0438\u044f": "140"
+        },
+        {
+            "\u043d\u0430\u0447\u0430\u043b\u043e": "26.01.25 20:48",
+            "\u043a\u043e\u043d\u0435\u0446": "02.02.25 20:48",
+            "\u043b\u0438\u043c\u0438\u0442": 0,
+            "id": 0,
+            "\u0446\u0435\u043d\u0430": 0,
+            "\u0447\u0435\u043a\u0431\u043e\u043a\u0441\u044b": [
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false
+            ],
+            "\u043f\u0430\u0440\u0442\u0438\u044f": "140"
+        },
+        {
+            "\u043d\u0430\u0447\u0430\u043b\u043e": "26.01.25 20:48",
+            "\u043a\u043e\u043d\u0435\u0446": "02.02.25 20:48",
+            "\u043b\u0438\u043c\u0438\u0442": 0,
+            "id": 0,
+            "\u0446\u0435\u043d\u0430": 0,
+            "\u0447\u0435\u043a\u0431\u043e\u043a\u0441\u044b": [
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false
+            ],
+            "\u043f\u0430\u0440\u0442\u0438\u044f": "140"
+        }
+    ]
+}

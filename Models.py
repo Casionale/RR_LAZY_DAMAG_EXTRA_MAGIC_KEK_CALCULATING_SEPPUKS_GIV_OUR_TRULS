@@ -2,6 +2,8 @@ from sqlalchemy import create_engine, Column, Integer, String, Float, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
+from db_config import get_database_url
+
 # Создаем базу данных
 Base = declarative_base()
 
@@ -38,19 +40,14 @@ class Payment(Base):
     limiter = Column(Boolean)
 
 
-# Настройка подключения к базе данных
-#DATABASE_URL = "sqlite:///records.db"
-conn_string = ""
-with open("msql_connection_string.txt", "r", encoding="utf-8") as f:
-    conn_string = f.read()
-
-DATABASE_URL = conn_string
+DATABASE_URL = get_database_url()
 engine = create_engine(DATABASE_URL)
 Base.metadata.create_all(engine)
 Session = sessionmaker(bind=engine)
 
 class Database:
     session = Session()
+
     def __init__(self):
         self.session = Session()
 
@@ -59,12 +56,12 @@ class Database:
         self.session.add(new_account)
         self.session.commit()
 
-    def add_order(self, account_id, name, date, price):
-        new_order = Order(account_id=account_id, name=name, date=date, price=price)
+    def add_order(self, name, date, price, limit=None):
+        new_order = Order(name=name, date=date, price=price, limit=limit)
         self.session.add(new_order)
         self.session.commit()
 
     def add_account_inorder(self, account_id, order_id, damage):
-        new_accountinorder = AccountInOrder(account_id=account_id, order_id=order_id)
+        new_accountinorder = AccountInOrder(account_id=account_id, order_id=order_id, damage=damage)
         self.session.add(new_accountinorder)
         self.session.commit()

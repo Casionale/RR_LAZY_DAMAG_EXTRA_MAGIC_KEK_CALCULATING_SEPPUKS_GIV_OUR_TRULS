@@ -10,15 +10,12 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
 from mozDecompress import mozlz4_to_text
+from db_config import get_database_url
 # импорт моделей
 from new_models import Base, NsOrder  # <-- твой файл с моделями
 from utils import Utils
 
-# настройка подключения (замени на свои параметры)
-with open('msql_connection_string.txt', 'r', encoding='utf-8') as f:
-    DATABASE_URL = f.read()
-
-engine = create_engine(DATABASE_URL)
+engine = create_engine(get_database_url())
 Session = sessionmaker(bind=engine)
 
 OUTPUT_DIR = "output"

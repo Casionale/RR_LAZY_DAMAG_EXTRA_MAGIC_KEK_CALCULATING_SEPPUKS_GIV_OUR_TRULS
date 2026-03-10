@@ -39,6 +39,7 @@ async function sendCookies() {
     const res = await fetch(`${backend}/api/session/import-cookies`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "include",
       body: JSON.stringify(payload)
     });
     const data = await res.json();

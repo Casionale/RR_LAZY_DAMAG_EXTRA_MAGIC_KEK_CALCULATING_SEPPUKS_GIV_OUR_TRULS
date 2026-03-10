@@ -1,187 +1,134 @@
-# RR Lazy Damage / Payment Toolkit
+# RR Lazy Damage / Payment Toolkit (Web migration)
 
-Набор утилит для работы с заказами в Rival Regions:
-- сбор урона по войнам,
-- расчёт выплат,
-- загрузка и хранение данных в БД,
-- просмотр статистики через GUI,
-- агрегация CSV-отчётов для выплат.
+Проект переведён в веб-формат (MVP):
+- Flask backend для расчётов,
+- Firefox extension для импорта cookies из браузера,
+- web UI для запуска расчётов.
 
----
-
-## Что входит в проект
-
-### 1) `main.py` — CLI-калькулятор по списку войн
-Основной «быстрый» сценарий:
-- берёт cookies (из Firefox или вручную из `SETTINGS.txt`),
-- читает `BATTLES.txt`,
-- валидирует формат строк,
-- считает выплаты по выбранному режиму.
-
-### 2) `new_pay_calc.py` — Tkinter-приложение для расчёта по заказам из БД
-GUI для выбора заказа из БД, запуска расчёта и сохранения итогового CSV в `output/`.
-
-### 3) `StatWindow.py` / `statistics.py` — интерфейсы для анализа и визуализации
-Инструменты просмотра данных по аккаунтам/заказам/выплатам и построение статистики.
-
-### 4) `summary.py` — группировка нескольких CSV по Telegram
-Собирает отчёты в единый табличный вид для отправки/экспорта.
-
-### 5) `Models.py` / `new_models.py` — модели и работа с БД
-SQLAlchemy-модели и сессии для хранения аккаунтов, заказов, урона и выплат.
-
-### 6) `db_config.py` — централизованная конфигурация подключения к БД
-Единая точка получения строки подключения.
+Также сохранены существующие desktop-инструменты (Tkinter/PyQt) как fallback.
 
 ---
 
-## Требования
+## Что уже работает
 
-- Python 3.10+
-- зависимости из `requirements.txt`
-- доступ к БД (если используете сценарии с SQLAlchemy)
+### Веб
+- `web_app/app.py` — Flask API + простая веб-страница
+  - список активных заказов,
+  - статус сессии,
+  - запуск расчёта по заказу,
+  - выгрузка CSV.
+- `web_extension_firefox/` — Firefox extension
+  - читает cookies (`PHPSESSID`, `rr`, `rr_add`, `rr_f`, `rr_id`) для `rivalregions.com`/`rivalka.ru`,
+  - отправляет их в backend endpoint `/api/session/import-cookies`.
 
-Установка зависимостей:
+### Legacy desktop (по-прежнему в репозитории)
+- `new_pay_calc.py`
+- `StatWindow.py`
+- `statistics.py`
+- `summary.py`
+
+---
+
+## Архитектура веб-части
+
+- Конфиг БД: `db_config.py`
+- ORM модели: `new_models.py`
+- Flask backend: `web_app/app.py`
+- Хранилище импортированных cookies: `web_app/session_store.py` (локальный JSON-файл)
+- UI: `web_app/templates/index.html`
+- Browser bridge: `web_extension_firefox/manifest.json`, `popup.html`, `popup.js`
+
+---
+
+## Установка
 
 ```bash
 pip install -r requirements.txt
 ```
 
+> Для `mysql+pymysql://...` нужен установленный драйвер `pymysql`.
+
 ---
 
 ## Настройка подключения к БД
 
-Проект ищет строку подключения в следующем порядке:
+Строка подключения ищется в порядке:
+1. `DATABASE_URL`
+2. `msql_connection_string.txt`
+3. `msql_connecting_string.txt`
 
-1. переменная окружения `DATABASE_URL`
-2. файл `msql_connection_string.txt`
-3. файл `msql_connecting_string.txt`
-
-Пример значения:
+Пример:
 
 ```text
 mysql+pymysql://USER:PASSWORD@HOST:3306/DB?charset=utf8mb4
 ```
 
-> Важно: для строки `mysql+pymysql://...` нужен установленный пакет `pymysql`.
-
 ---
 
-## Настройка cookies и клиента (для `main.py`)
-
-Используется файл `SETTINGS.txt` (JSON-формат):
-
-```json
-{
-  "cookies_file_uri": "C:\\...\\cookies.sqlite",
-  "session_file_uri": "C:\\...\\sessionstore-backups\\previous.jsonlz4",
-  "client": "your_client_token",
-  "rr": "...",
-  "rr_add": "...",
-  "rr_f": "...",
-  "rr_id": "...",
-  "PHPSESSID": "..."
-}
-```
-
-- Если выбираете cookies из Firefox — нужны пути `cookies_file_uri` и `session_file_uri`.
-- Если выбираете ручной режим — нужны cookie-поля `rr`, `rr_add`, `rr_f`, `rr_id`, `PHPSESSID`.
-- Поле `client` нужно в обоих режимах.
-
----
-
-## Формат `BATTLES.txt`
-
-Каждая непустая строка содержит **5 колонок**, разделённых TAB:
-
-```text
-war_id    is_attack    price    party_id    stop_at
-```
-
-Пример:
-
-```text
-633744	False	6000	140	23:59 20.11.2024
-634081	True	6000	140	23:59 21.11.2024
-```
-
-Описание колонок:
-- `war_id` — ID войны (число)
-- `is_attack` — `True`/`False`
-- `price` — цена за 1к урона (целое число)
-- `party_id` — ID партии (целое число)
-- `stop_at` — время стопа в формате `HH:MM dd.mm.yyyy`
-
-`main.py` валидирует файл и показывает понятную ошибку с номером строки при неверном формате.
-
----
-
-## Как запускать
-
-### CLI расчёт по войнам
+## Запуск веб-бэкенда
 
 ```bash
-python main.py
+python web_app/app.py
 ```
 
-Далее в интерактивном меню:
-1. выбрать способ загрузки cookies,
-2. выбрать режим расчёта.
-
-### GUI расчёт оплаты по заказу из БД
-
-```bash
-python new_pay_calc.py
-```
-
-### GUI сводка CSV по Telegram
-
-```bash
-python summary.py
-```
-
-### Статистика/графики
-
-```bash
-python statistics.py
-# или
-python StatWindow.py
-```
+После запуска открыть:
+- `http://localhost:5000/`
 
 ---
 
-## Типичные проблемы
+## Установка Firefox extension (вручную)
 
-### 1) Ошибка подключения к БД
-Проверьте:
-- корректность `DATABASE_URL`/файла со строкой подключения,
-- доступность хоста и порта,
-- наличие драйвера (`pymysql` для MySQL).
+1. Откройте `about:debugging#/runtime/this-firefox`
+2. Нажмите **Load Temporary Add-on**
+3. Выберите файл `web_extension_firefox/manifest.json`
+4. Откройте `rivalregions.com` (или `rivalka.ru`) и авторизуйтесь
+5. Нажмите иконку расширения → **Отправить cookies**
 
-### 2) Ошибка формата `BATTLES.txt`
-Проверьте:
-- TAB-разделители,
-- число колонок (=5),
-- типы (`int`, `True/False`).
-
-### 3) Сессия устарела / пустой ответ
-Обновите cookies и повторите запуск.
+После этого backend увидит сессию в `/api/session/status`.
 
 ---
 
-## Кратко по архитектуре
 
-- Сетевые запросы и расчёты: `utils.py`
-- Точка входа CLI: `main.py`
-- БД-модели/ORM: `Models.py`, `new_models.py`
-- Конфиг БД: `db_config.py`
-- GUI-инструменты: `new_pay_calc.py`, `summary.py`, `statistics.py`, `StatWindow.py`
+## Telegram-авторизация (обязательно для API)
+
+Backend поддерживает вход через Telegram Login Widget.
+
+Нужно задать переменные окружения:
+
+```bash
+export TELEGRAM_BOT_TOKEN="<bot_token>"
+export TELEGRAM_BOT_USERNAME="<bot_username_without_@>"
+export WEB_SECRET_KEY="<random_secret_for_flask_session>"
+```
+
+После этого на главной странице появится кнопка входа через Telegram.
+Все рабочие API-методы (`/api/orders`, `/api/session/*`, `/api/calculate/*`) требуют авторизацию.
 
 ---
 
-## Рекомендации по дальнейшему развитию
+## API (MVP)
 
-1. Вынести общие операции с БД в отдельный сервисный слой.
-2. Добавить минимальные автотесты на парсинг `BATTLES.txt` и `db_config.get_database_url()`.
-3. Добавить единый логгер вместо `print` для CLI и GUI.
-4. Унифицировать работу с доменом (`rivalregions.com` / `rivalka.ru`) через конфиг.
+- `GET /api/orders` — список активных заказов
+- `GET /api/session/status` — есть ли загруженная cookie-сессия
+- `POST /api/session/import-cookies` — импорт cookies из extension
+- `POST /api/calculate/<order_id>` — расчёт по заказу (JSON)
+- `POST /api/calculate/<order_id>/csv` — расчёт и отдача CSV
+
+---
+
+## Важные ограничения MVP
+
+1. Cookies сейчас хранятся локально в `web_app/runtime/session.json` (без шифрования).
+2. Нет multi-user изоляции сессий.
+3. Нет полноценной авторизации/ролей в web UI.
+4. UI пока технический (минимальный).
+
+---
+
+## Следующие шаги
+
+1. Добавить авторизацию (JWT/session).
+2. Перейти на защищённое хранение сессий (шифрование, TTL, revoke).
+3. Сделать нормальный frontend (React/Vue) вместо базового HTML.
+4. Вынести расчёт в сервисный слой + очередь задач (Celery/RQ).
+5. Добавить тесты на API и extension-интеграцию.

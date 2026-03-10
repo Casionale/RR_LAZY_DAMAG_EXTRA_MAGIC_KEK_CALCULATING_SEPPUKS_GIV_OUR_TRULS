@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <style>body{font-family:Arial,sans-serif;min-width:320px;padding:10px}input{width:100%;margin:4px 0}button{width:100%;margin-top:8px}#msg{margin-top:8px;white-space:pre-wrap}</style>
+</head>
+<body>
+  <h3>NS Cookie Bridge</h3>
+  <label>Backend URL</label>
+  <input id="backend" value="http://localhost:5000" />
+  <label>Client (опционально)</label>
+  <input id="client" placeholder="client token" />
+  <button id="send">Отправить cookies</button>
+  <div id="msg"></div>
+  <script src="popup.js"></script>
+</body>
+</html>

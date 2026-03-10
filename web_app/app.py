@@ -11,7 +11,7 @@ from decimal import Decimal
 from functools import wraps
 from pathlib import Path
 
-from flask import Flask, jsonify, redirect, render_template, request, send_file, session, url_for
+from flask import Flask, jsonify, make_response, redirect, render_template, request, send_file, session, url_for
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
@@ -77,6 +77,8 @@ def _is_telegram_auth_fresh(auth_date: str, max_age_seconds: int = 86400) -> boo
 def require_auth(handler):
     @wraps(handler)
     def wrapper(*args, **kwargs):
+        if request.method == "OPTIONS":
+            return _build_preflight_response()
         if not session.get("user"):
             return jsonify({"ok": False, "error": "Требуется авторизация через Telegram"}), 401
         return handler(*args, **kwargs)
@@ -84,11 +86,35 @@ def require_auth(handler):
     return wrapper
 
 
+def _build_preflight_response():
+    response = make_response("", 204)
+    return _add_cors_headers(response)
+
+
+def _add_cors_headers(response):
+    origin = request.headers.get("Origin")
+    if origin:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Vary"] = "Origin"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    return response
+
+
+@app.after_request
+def apply_cors_headers(response):
+    if request.path.startswith("/api/"):
+        response = _add_cors_headers(response)
+    return response
+
+
 @app.get("/")
 def index():
     return render_template(
         "index.html",
         tg_bot_username=os.getenv("TELEGRAM_BOT_USERNAME", ""),
+        tg_auth_url=url_for("auth_telegram", _external=True),
     )
 
 
@@ -165,6 +191,11 @@ def import_cookies():
     }
     store.save(data)
     return jsonify({"ok": True, "message": "Cookies сохранены"})
+
+
+@app.route("/api/session/import-cookies", methods=["OPTIONS"])
+def import_cookies_options():
+    return _build_preflight_response()
 
 
 @app.get("/api/session/status")

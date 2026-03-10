@@ -9,6 +9,7 @@
     pre{background:#f4f4f4;padding:12px;overflow:auto;min-height:120px}
     .box{border:1px solid #ddd;padding:12px;border-radius:8px;margin:10px 0}
     .hidden{display:none}
+    .small{font-size:12px;color:#555}
   </style>
 </head>
 <body>
@@ -17,17 +18,23 @@
   <div class="box" id="authBox">
     <h3>Авторизация</h3>
     <div id="authState">Проверка...</div>
-    <div id="tgLogin" class="hidden">
-      {% if tg_bot_username %}
+
+    {% if tg_bot_username %}
+    <div class="small">Telegram bot: <b>@{{ tg_bot_username }}</b></div>
+    <div class="small">Auth URL: <code>{{ tg_auth_url }}</code></div>
+    <div class="small">Если виджет не появляется: убедитесь, что открыли сайт по домену из BotFather /setdomain и что это HTTPS (не localhost).</div>
+
+    <div id="tgLogin">
       <script async src="https://telegram.org/js/telegram-widget.js?22"
               data-telegram-login="{{ tg_bot_username }}"
               data-size="large"
-              data-auth-url="{{ url_for('auth_telegram', _external=True) }}"
+              data-auth-url="{{ tg_auth_url }}"
               data-request-access="write"></script>
-      {% else %}
-      <p>TELEGRAM_BOT_USERNAME не настроен на backend.</p>
-      {% endif %}
     </div>
+    {% else %}
+    <p>TELEGRAM_BOT_USERNAME не настроен на backend.</p>
+    {% endif %}
+
     <button id="logoutBtn" class="hidden">Выйти</button>
   </div>
 
@@ -58,11 +65,11 @@ async function loadAuth(){
   if (data.authenticated){
     const u = data.user || {};
     state.textContent = `✅ Вы вошли как @${u.username || 'unknown'} (${u.first_name || ''})`;
-    tgLogin.classList.add('hidden');
+    if (tgLogin) tgLogin.classList.add('hidden');
     logoutBtn.classList.remove('hidden');
   } else {
     state.textContent = '❌ Не авторизован';
-    tgLogin.classList.remove('hidden');
+    if (tgLogin) tgLogin.classList.remove('hidden');
     logoutBtn.classList.add('hidden');
   }
 }

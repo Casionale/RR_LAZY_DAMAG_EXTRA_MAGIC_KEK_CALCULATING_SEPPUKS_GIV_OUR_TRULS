@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <title>NS CRM</title>
+  <style>
+    body{font-family:Arial,sans-serif;max-width:1080px;margin:20px auto;padding:0 16px}
+    .box{border:1px solid #ddd;padding:12px;border-radius:8px;margin:10px 0}
+    .row{display:flex;gap:10px;flex-wrap:wrap}
+    input,select,textarea{padding:6px}
+    table{width:100%;border-collapse:collapse}
+    th,td{border:1px solid #ddd;padding:8px;text-align:left}
+    pre{background:#f4f4f4;padding:12px;overflow:auto}
+  </style>
+</head>
+<body>
+  <h1>NS CRM (Espo-style mini)</h1>
+  <div class="box">
+    <div>Вы вошли как <b>@{{ user.username or 'unknown' }}</b></div>
+    <div class="row">
+      <button id="logoutBtn">Выйти</button>
+      <button id="refreshBtn">Обновить</button>
+      <button id="exportBtn">CRM Export JSON</button>
+    </div>
+  </div>
+
+  <div class="box">
+    <h3>Сделки / заказы (из БД)</h3>
+    <table>
+      <thead><tr><th>ID</th><th>Название</th><th>URL войны</th><th>Цена</th><th>Лимит</th><th>Окончание</th></tr></thead>
+      <tbody id="ordersBody"></tbody>
+    </table>
+  </div>
+
+  <div class="box">
+    <h3>Лиды CRM (локально)</h3>
+    <div class="row">
+      <input id="leadName" placeholder="Имя лида" />
+      <input id="leadSource" placeholder="Источник (tg/form/manual)" value="manual" />
+      <select id="leadStatus">
+        <option value="new">new</option>
+        <option value="qualified">qualified</option>
+        <option value="won">won</option>
+        <option value="lost">lost</option>
+      </select>
+    </div>
+    <textarea id="leadComment" placeholder="Комментарий" rows="3" style="width:100%;margin-top:8px"></textarea>
+    <button id="createLeadBtn">Создать лид</button>
+
+    <table style="margin-top:12px">
+      <thead><tr><th>ID</th><th>Имя</th><th>Источник</th><th>Статус</th><th>Комментарий</th><th>Кем создан</th><th>Дата</th></tr></thead>
+      <tbody id="leadsBody"></tbody>
+    </table>
+  </div>
+
+  <pre id="out"></pre>
+
+<script>
+async function fetchJson(url, options={}){
+  const res = await fetch(url, options);
+  const data = await res.json();
+  return {res, data};
+}
+
+async function loadOrders(){
+  const {res, data} = await fetchJson('/api/orders');
+  if (res.status === 401){
+    window.location.href = '/';
+    return;
+  }
+  const body = document.getElementById('ordersBody');
+  body.innerHTML = '';
+  for (const o of data){
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${o.id}</td><td>${o.name}</td><td>${o.url}</td><td>${o.price}</td><td>${o.limit}</td><td>${o.end_date || ''}</td>`;
+    body.appendChild(tr);
+  }
+}
+
+async function loadLeads(){
+  const {res, data} = await fetchJson('/api/crm/leads');
+  if (res.status === 401){
+    window.location.href = '/';
+    return;
+  }
+  const body = document.getElementById('leadsBody');
+  body.innerHTML = '';
+  for (const x of data.items || []){
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${x.id}</td><td>${x.name}</td><td>${x.source}</td><td>${x.status}</td><td>${x.comment || ''}</td><td>${x.created_by || ''}</td><td>${x.created_at}</td>`;
+    body.appendChild(tr);
+  }
+}
+
+async function createLead(){
+  const payload = {
+    name: document.getElementById('leadName').value.trim(),
+    source: document.getElementById('leadSource').value.trim(),
+    status: document.getElementById('leadStatus').value,
+    comment: document.getElementById('leadComment').value.trim(),
+  };
+  const rr = await fetchJson('/api/crm/leads', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(payload),
+  });
+  document.getElementById('out').textContent = JSON.stringify(rr.data, null, 2);
+  if (rr.res.ok){
+    document.getElementById('leadName').value = '';
+    document.getElementById('leadComment').value = '';
+    await loadLeads();
+  }
+}
+
+async function exportCrm(){
+  const rr = await fetchJson('/api/crm/export');
+  document.getElementById('out').textContent = JSON.stringify(rr.data, null, 2);
+}
+
+async function logout(){
+  await fetchJson('/api/auth/logout', {method:'POST'});
+  window.location.href = '/';
+}
+
+document.getElementById('refreshBtn').onclick = async()=>{ await loadOrders(); await loadLeads(); };
+document.getElementById('createLeadBtn').onclick = createLead;
+document.getElementById('exportBtn').onclick = exportCrm;
+document.getElementById('logoutBtn').onclick = logout;
+
+loadOrders();
+loadLeads();
+</script>
+</body>
+</html>

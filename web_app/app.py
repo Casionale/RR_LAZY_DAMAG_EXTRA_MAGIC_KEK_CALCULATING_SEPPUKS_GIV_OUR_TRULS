@@ -18,11 +18,13 @@ from sqlalchemy.orm import sessionmaker
 from db_config import get_database_url
 from new_models import NsOrder
 from utils import Utils
+from web_app.crm_store import CrmStore
 from web_app.session_store import SessionStore, validate_cookie_payload
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.getenv("WEB_SECRET_KEY", "dev-secret-change-me")
 store = SessionStore()
+crm_store = CrmStore()
 
 _session_factory = None
 
@@ -49,6 +51,16 @@ def _serialize_order(order: NsOrder) -> dict:
         "is_attack": bool(order.is_attack),
         "end_date": order.end_date.isoformat() if order.end_date else None,
     }
+
+
+def _get_active_orders() -> list[dict]:
+    Session = get_session_factory()
+    session_db = Session()
+    try:
+        orders = session_db.execute(select(NsOrder).where(NsOrder.is_end == False)).scalars().all()
+        return [_serialize_order(order) for order in orders]
+    finally:
+        session_db.close()
 
 
 def _is_telegram_payload_valid(payload: dict, bot_token: str) -> bool:
@@ -111,6 +123,9 @@ def apply_cors_headers(response):
 
 @app.get("/")
 def index():
+    if session.get("user"):
+        return redirect(url_for("crm_dashboard"))
+
     return render_template(
         "index.html",
         tg_bot_username=os.getenv("TELEGRAM_BOT_USERNAME", ""),
@@ -142,7 +157,7 @@ def auth_telegram():
         "photo_url": payload.get("photo_url"),
         "auth_date": payload.get("auth_date"),
     }
-    return redirect(url_for("index"))
+    return redirect(url_for("crm_dashboard"))
 
 
 @app.post("/api/auth/logout")
@@ -157,20 +172,51 @@ def auth_me():
     return jsonify({"authenticated": bool(user), "user": user})
 
 
+@app.get("/crm")
+@require_auth
+def crm_dashboard():
+    return render_template("crm.html", user=session.get("user", {}))
+
+
+@app.get("/api/crm/leads")
+@require_auth
+def crm_leads_list():
+    return jsonify({"ok": True, "items": crm_store.load()})
+
+
+@app.post("/api/crm/leads")
+@require_auth
+def crm_leads_create():
+    payload = request.get_json(silent=True) or {}
+
+    name = str(payload.get("name", "")).strip()
+    source = str(payload.get("source", "manual")).strip() or "manual"
+    status = str(payload.get("status", "new")).strip() or "new"
+    comment = str(payload.get("comment", "")).strip()
+
+    if not name:
+        return jsonify({"ok": False, "error": "Поле name обязательно"}), 400
+
+    row = {
+        "id": int(time.time() * 1000),
+        "name": name,
+        "source": source,
+        "status": status,
+        "comment": comment,
+        "created_at": datetime.utcnow().isoformat() + "Z",
+        "created_by": (session.get("user") or {}).get("username"),
+    }
+    crm_store.append(row)
+    return jsonify({"ok": True, "item": row})
+
+
 @app.get("/api/orders")
 @require_auth
 def get_orders():
     try:
-        Session = get_session_factory()
+        return jsonify(_get_active_orders())
     except RuntimeError as error:
         return jsonify({"ok": False, "error": str(error)}), 500
-
-    session_db = Session()
-    try:
-        orders = session_db.execute(select(NsOrder).where(NsOrder.is_end == False)).scalars().all()
-        return jsonify([_serialize_order(order) for order in orders])
-    finally:
-        session_db.close()
 
 
 @app.post("/api/session/import-cookies")
@@ -356,7 +402,6 @@ def calculate_order_csv(order_id: int):
 
 
 
-
 @app.post("/api/war/calculate")
 @require_auth
 def calculate_war():
@@ -406,6 +451,40 @@ def calculate_war_csv():
     mem.seek(0)
     war_id = payload.get("war", {}).get("war_id", "war")
     return send_file(mem, mimetype="text/csv", as_attachment=True, download_name=f"war_payment_{war_id}.csv")
+
+
+@app.get("/api/crm/export")
+@require_auth
+def crm_export():
+    """CRM-ready snapshot for no-code automation tools (n8n/Make/Zapier/CRM import)."""
+    try:
+        orders = _get_active_orders()
+    except RuntimeError as error:
+        return jsonify({"ok": False, "error": str(error)}), 500
+
+    state = store.load() or {}
+    current_user = session.get("user") or {}
+
+    return jsonify(
+        {
+            "ok": True,
+            "generated_at": datetime.utcnow().isoformat() + "Z",
+            "user": {
+                "id": current_user.get("id"),
+                "username": current_user.get("username"),
+            },
+            "session": {
+                "connected": bool(state),
+                "domain": state.get("domain"),
+                "updated_at": state.get("updated_at"),
+                "loaded_by": (state.get("user") or {}).get("username"),
+            },
+            "orders": orders,
+            "stats": {
+                "orders_count": len(orders),
+            },
+        }
+    )
 
 
 @app.get("/api/health")

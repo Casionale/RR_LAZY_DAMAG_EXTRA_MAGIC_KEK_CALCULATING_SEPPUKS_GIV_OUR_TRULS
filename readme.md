@@ -119,6 +119,7 @@ export WEB_SECRET_KEY="<random_secret_for_flask_session>"
 - `POST /api/calculate/<order_id>/csv` — расчёт по заказу и отдача CSV
 - `POST /api/war/calculate` — ручной кек-калькулятинг по параметрам войны (JSON)
 - `POST /api/war/calculate/csv` — ручной кек-калькулятинг по параметрам войны и отдача CSV
+- `GET /api/crm/export` — CRM-ready snapshot (заказы + статус сессии + базовая статистика)
 
 ---
 
@@ -147,104 +148,46 @@ export WEB_SECRET_KEY="<random_secret_for_flask_session>"
 - `TELEGRAM_BOT_USERNAME` совпадает с текущим ботом,
 - в блоке "Авторизация" на странице показаны корректные `Telegram bot` и `Auth URL`.
 
----
 
-
-## Telegram-авторизация (обязательно для API)
-
-Backend поддерживает вход через Telegram Login Widget.
-
-Нужно задать переменные окружения:
-
-```bash
-export TELEGRAM_BOT_TOKEN="<bot_token>"
-export TELEGRAM_BOT_USERNAME="<bot_username_without_@>"
-export WEB_SECRET_KEY="<random_secret_for_flask_session>"
-```
-
-После этого на главной странице появится кнопка входа через Telegram.
-Все рабочие API-методы (`/api/orders`, `/api/session/*`, `/api/calculate/*`) требуют авторизацию.
 
 ---
 
-## API (MVP)
+## Интеграция с бесплатными CRM
 
-- `GET /api/orders` — список активных заказов
-- `GET /api/session/status` — есть ли загруженная cookie-сессия
-- `POST /api/session/import-cookies` — импорт cookies из extension
-- `POST /api/calculate/<order_id>` — расчёт по заказу (JSON)
-- `POST /api/calculate/<order_id>/csv` — расчёт и отдача CSV
+Да, можно интегрировать текущую БД и расчёты с free/open-source CRM без переписывания всей системы.
+
+Рекомендуемые варианты:
+- **EspoCRM (open-source)** — удобные сущности, API, self-hosted.
+- **SuiteCRM (open-source)** — классический CRM-подход, много готовых модулей.
+- **Odoo Community** — если нужна CRM + процессы/учёт в одном месте.
+
+Практичный путь с минимальным риском:
+1. Использовать `GET /api/crm/export` как источник данных (orders/session/stats).
+2. Подключить n8n/Make/Zapier (или прямой integration script) для передачи в CRM.
+3. В CRM создать сущности:
+   - `War Orders` (id/name/url/price/limit/end_date),
+   - `War Calculations` (rows с damage/sum/profile_url),
+   - `Users/Sessions` (кто загрузил cookies, когда).
+4. Добавить webhook-цепочку: расчёт в backend → событие/вставка в CRM.
+
+Так вы получите формы, отчёты и автоматизацию в CRM, сохранив текущую бизнес-логику расчётов в этом проекте.
+
 
 ---
 
-## Важные ограничения MVP
+## Встроенная CRM
 
-1. Cookies сейчас хранятся локально в `web_app/runtime/session.json` (без шифрования).
-2. Нет multi-user изоляции сессий.
-3. Нет полноценной авторизации/ролей в web UI.
-4. UI пока технический (минимальный).
+Я выбрал лёгкий путь: встроенная **mini CRM в стиле EspoCRM** внутри текущего Flask-приложения.
 
----
+Что доступно:
+- `GET /crm` — CRM-страница (доступ после Telegram-авторизации),
+- автоматический переход в CRM сразу после логина,
+- таблица активных заказов из БД,
+- локальные CRM-лиды (создание и просмотр).
 
-## Следующие шаги
+CRM API:
+- `GET /api/crm/leads` — список лидов,
+- `POST /api/crm/leads` — создать лид,
+- `GET /api/crm/export` — экспорт агрегированного snapshot для интеграций.
 
-1. Добавить авторизацию (JWT/session).
-2. Перейти на защищённое хранение сессий (шифрование, TTL, revoke).
-3. Сделать нормальный frontend (React/Vue) вместо базового HTML.
-4. Вынести расчёт в сервисный слой + очередь задач (Celery/RQ).
-5. Добавить тесты на API и extension-интеграцию.
-
-
-### Telegram виджет не отображается / Bot domain invalid
-Проверьте:
-- приложение открыто по домену, который указан в BotFather (`/setdomain`),
-- используется HTTPS (для локальной разработки используйте tunnel: ngrok/cloudflared),
-- `TELEGRAM_BOT_USERNAME` совпадает с текущим ботом,
-- в блоке "Авторизация" на странице показаны корректные `Telegram bot` и `Auth URL`.
-
----
-
-
-## Telegram-авторизация (обязательно для API)
-
-Backend поддерживает вход через Telegram Login Widget.
-
-Нужно задать переменные окружения:
-
-```bash
-export TELEGRAM_BOT_TOKEN="<bot_token>"
-export TELEGRAM_BOT_USERNAME="<bot_username_without_@>"
-export WEB_SECRET_KEY="<random_secret_for_flask_session>"
-```
-
-После этого на главной странице появится кнопка входа через Telegram.
-Все рабочие API-методы (`/api/orders`, `/api/session/*`, `/api/calculate/*`) требуют авторизацию.
-
----
-
-## API (MVP)
-
-- `GET /api/orders` — список активных заказов
-- `GET /api/session/status` — есть ли загруженная cookie-сессия
-- `POST /api/session/import-cookies` — импорт cookies из extension
-- `POST /api/calculate/<order_id>` — расчёт по заказу (JSON)
-- `POST /api/calculate/<order_id>/csv` — расчёт и отдача CSV
-
----
-
-## Важные ограничения MVP
-
-1. Cookies сейчас хранятся локально в `web_app/runtime/session.json` (без шифрования).
-2. Нет multi-user изоляции сессий.
-3. Нет полноценной авторизации/ролей в web UI.
-4. UI пока технический (минимальный).
-
----
-
-## Следующие шаги
-
-1. Добавить авторизацию (JWT/session).
-2. Перейти на защищённое хранение сессий (шифрование, TTL, revoke).
-3. Сделать нормальный frontend (React/Vue) вместо базового HTML.
-4. Вынести расчёт в сервисный слой + очередь задач (Celery/RQ).
-5. Добавить тесты на API и extension-интеграцию.
+Хранилище лидов: `web_app/runtime/crm_leads.json`.

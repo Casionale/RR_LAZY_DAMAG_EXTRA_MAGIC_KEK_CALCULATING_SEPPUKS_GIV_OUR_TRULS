@@ -27,11 +27,10 @@ def process_csv_files(file_paths):
             messagebox.showerror("Ошибка чтения файла", f"{file_path}:\n{e}")
             continue
 
-    # Формируем табличный вывод с табуляцией
     output = []
     for tg, entries in grouped_data.items():
-        url_by_tg = get_payment_acc_ny_tg(tg)
-        output.append(f"{tg}\t{ url_by_tg if url_by_tg is not None else entries[0]['url'] }")
+        url_by_tg = get_payment_acc_by_tg(tg)
+        output.append(f"{tg}\t{url_by_tg if url_by_tg is not None else entries[0]['url']}")
         output.append("Файл\tАккаунт\tПлата")
         for entry in entries:
             output.append(f"{entry['filename']}\t{entry['account']}\t{entry['payment']}")
@@ -39,7 +38,7 @@ def process_csv_files(file_paths):
     return "\n".join(output)
 
 
-def select_files():
+def select_files(output_text):
     file_paths = filedialog.askopenfilenames(
         title="Выберите CSV-файлы",
         filetypes=[("CSV files", "*.csv")]
@@ -50,33 +49,40 @@ def select_files():
         output_text.insert(tk.END, result)
 
 
-def copy_to_clipboard():
+def copy_to_clipboard(root, output_text):
     data = output_text.get(1.0, tk.END)
     root.clipboard_clear()
     root.clipboard_append(data)
     messagebox.showinfo("Готово", "Результат скопирован в буфер обмена!\nВставь в Excel или Google Таблицы.")
 
-def get_payment_acc_ny_tg(tg):
+
+def get_payment_acc_by_tg(tg):
     account = Database.session.query(Account).filter_by(tg=tg, payable=True).first()
     if account is None:
         return None
     return account.url
 
 
-# Создание окна
-root = tk.Tk()
-root.title("Группировка CSV по Telegram")
+def build_ui():
+    root = tk.Tk()
+    root.title("Группировка CSV по Telegram")
 
-frame = tk.Frame(root)
-frame.pack(pady=10)
+    frame = tk.Frame(root)
+    frame.pack(pady=10)
 
-select_button = tk.Button(frame, text="Выбрать CSV-файлы", command=select_files)
-select_button.pack(side=tk.LEFT, padx=5)
+    output_text = tk.Text(root, wrap=tk.NONE, height=25, width=100)
 
-copy_button = tk.Button(frame, text="Копировать в буфер", command=copy_to_clipboard)
-copy_button.pack(side=tk.LEFT, padx=5)
+    select_button = tk.Button(frame, text="Выбрать CSV-файлы", command=lambda: select_files(output_text))
+    select_button.pack(side=tk.LEFT, padx=5)
 
-output_text = tk.Text(root, wrap=tk.NONE, height=25, width=100)
-output_text.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
+    copy_button = tk.Button(frame, text="Копировать в буфер", command=lambda: copy_to_clipboard(root, output_text))
+    copy_button.pack(side=tk.LEFT, padx=5)
 
-root.mainloop()
+    output_text.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
+
+    return root
+
+
+if __name__ == "__main__":
+    app = build_ui()
+    app.mainloop()

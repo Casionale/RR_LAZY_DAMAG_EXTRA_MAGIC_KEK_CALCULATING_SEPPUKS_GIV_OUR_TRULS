@@ -10,6 +10,8 @@
     .box{border:1px solid #ddd;padding:12px;border-radius:8px;margin:10px 0}
     .hidden{display:none}
     .small{font-size:12px;color:#555}
+    .row{display:flex;gap:12px;flex-wrap:wrap}
+    .row label{display:flex;flex-direction:column;gap:4px}
   </style>
 </head>
 <body>
@@ -41,23 +43,55 @@
   <div class="box">
     <p>1) Авторизуйтесь через Telegram.</p>
     <p>2) Импортируйте cookies через Firefox extension.</p>
-    <p>3) Выберите заказ и запустите расчёт.</p>
+    <p>3) После этого откроется меню расчётов.</p>
     <button id="refresh">Обновить</button>
     <div id="status"></div>
   </div>
 
-  <ul id="orders"></ul>
+  <div class="box hidden" id="menuBox">
+    <h3>Меню</h3>
+
+    <h4>Заказы из БД</h4>
+    <ul id="orders"></ul>
+
+    <h4>Кек-калькулятинг по войне</h4>
+    <div class="row">
+      <label>War ID <input id="warId" type="number" value="0"></label>
+      <label>Цена за урон <input id="warPrice" type="number" value="1" step="0.01"></label>
+      <label>Stop at <input id="warStopAt" type="text" placeholder="HH:MM DD.MM.YYYY"></label>
+      <label>Лимит <input id="warLimit" type="number" value="30000000"></label>
+      <label><input id="warIsAttack" type="checkbox" checked> Атакующая сторона</label>
+      <label><input id="warIsLimit" type="checkbox" checked> Учитывать лимит</label>
+    </div>
+    <button id="warCalcBtn">Рассчитать войну (JSON)</button>
+    <button id="warCsvBtn">Скачать CSV по войне</button>
+  </div>
+
   <pre id="out"></pre>
 
 <script>
+let authState = { authenticated: false };
+let sessionState = { connected: false };
+
 async function fetchJson(url, options={}){
   const res = await fetch(url, options);
   const data = await res.json();
   return {res, data};
 }
 
+function showMenuIfReady(){
+  const menu = document.getElementById('menuBox');
+  if (authState.authenticated && sessionState.connected) {
+    menu.classList.remove('hidden');
+  } else {
+    menu.classList.add('hidden');
+  }
+}
+
 async function loadAuth(){
   const {data} = await fetchJson('/api/auth/me');
+  authState = data;
+
   const state = document.getElementById('authState');
   const tgLogin = document.getElementById('tgLogin');
   const logoutBtn = document.getElementById('logoutBtn');
@@ -76,11 +110,15 @@ async function loadAuth(){
 
 async function loadStatus(){
   const {res, data} = await fetchJson('/api/session/status');
+  sessionState = { connected: false };
   const status = document.getElementById('status');
+
   if (res.status === 401){
     status.textContent = 'Нужна авторизация через Telegram';
     return;
   }
+
+  sessionState = data;
   status.textContent = data.connected
     ? `✅ Сессия активна (${data.updated_at}), загрузил: ${data.loaded_by || 'unknown'}`
     : '❌ Сессия не загружена';
@@ -106,9 +144,61 @@ async function loadOrders(){
       const rr=await fetchJson(`/api/calculate/${o.id}`,{method:'POST'});
       document.getElementById('out').textContent=JSON.stringify(rr.data,null,2);
     };
+
+    const csvBtn = document.createElement('button');
+    csvBtn.textContent = `CSV: ${o.name} (#${o.id})`;
+    csvBtn.onclick=()=>{ window.open(`/api/calculate/${o.id}/csv`, '_blank'); };
+
     li.appendChild(b);
+    li.appendChild(csvBtn);
     ul.appendChild(li);
   }
+}
+
+function readWarForm(){
+  return {
+    war_id: Number(document.getElementById('warId').value),
+    price: Number(document.getElementById('warPrice').value),
+    stop_at: document.getElementById('warStopAt').value.trim(),
+    limit: Number(document.getElementById('warLimit').value),
+    is_attack: document.getElementById('warIsAttack').checked,
+    is_limit: document.getElementById('warIsLimit').checked,
+  };
+}
+
+async function runWarCalculate(){
+  const payload = readWarForm();
+  const rr = await fetchJson('/api/war/calculate', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(payload),
+  });
+  document.getElementById('out').textContent=JSON.stringify(rr.data,null,2);
+}
+
+async function runWarCsv(){
+  const payload = readWarForm();
+  const response = await fetch('/api/war/calculate/csv', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok){
+    const data = await response.json();
+    document.getElementById('out').textContent = JSON.stringify(data, null, 2);
+    return;
+  }
+
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'war_payment.csv';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 async function logout(){
@@ -119,11 +209,18 @@ async function logout(){
 async function refreshAll(){
   await loadAuth();
   await loadStatus();
-  await loadOrders();
+  showMenuIfReady();
+  if (authState.authenticated && sessionState.connected){
+    await loadOrders();
+  } else {
+    document.getElementById('orders').innerHTML='';
+  }
 }
 
 document.getElementById('refresh').onclick=refreshAll;
 document.getElementById('logoutBtn').onclick=logout;
+document.getElementById('warCalcBtn').onclick=runWarCalculate;
+document.getElementById('warCsvBtn').onclick=runWarCsv;
 refreshAll();
 </script>
 </body>

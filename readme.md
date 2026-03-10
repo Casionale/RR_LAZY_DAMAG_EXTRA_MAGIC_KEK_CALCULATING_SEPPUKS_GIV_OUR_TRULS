@@ -86,6 +86,67 @@ python web_app/app.py
 
 После этого backend увидит сессию в `/api/session/status`.
 
+После авторизации и загрузки cookies на главной появляется меню:
+- расчёт по активным заказам из БД;
+- ручной расчёт по войне (`war_id`, `price`, `stop_at`, `limit`, `is_attack`) с выгрузкой CSV.
+
+---
+
+
+## Telegram-авторизация (обязательно для API)
+
+Backend поддерживает вход через Telegram Login Widget.
+
+Нужно задать переменные окружения:
+
+```bash
+export TELEGRAM_BOT_TOKEN="<bot_token>"
+export TELEGRAM_BOT_USERNAME="<bot_username_without_@>"
+export WEB_SECRET_KEY="<random_secret_for_flask_session>"
+```
+
+После этого на главной странице появится кнопка входа через Telegram.
+Все рабочие API-методы (`/api/orders`, `/api/session/*`, `/api/calculate/*`) требуют авторизацию.
+
+---
+
+## API (MVP)
+
+- `GET /api/orders` — список активных заказов
+- `GET /api/session/status` — есть ли загруженная cookie-сессия
+- `POST /api/session/import-cookies` — импорт cookies из extension
+- `POST /api/calculate/<order_id>` — расчёт по заказу (JSON)
+- `POST /api/calculate/<order_id>/csv` — расчёт по заказу и отдача CSV
+- `POST /api/war/calculate` — ручной кек-калькулятинг по параметрам войны (JSON)
+- `POST /api/war/calculate/csv` — ручной кек-калькулятинг по параметрам войны и отдача CSV
+
+---
+
+## Важные ограничения MVP
+
+1. Cookies сейчас хранятся локально в `web_app/runtime/session.json` (без шифрования).
+2. Нет multi-user изоляции сессий.
+3. Нет полноценной авторизации/ролей в web UI.
+4. UI пока технический (минимальный).
+
+---
+
+## Следующие шаги
+
+1. Добавить авторизацию (JWT/session).
+2. Перейти на защищённое хранение сессий (шифрование, TTL, revoke).
+3. Сделать нормальный frontend (React/Vue) вместо базового HTML.
+4. Вынести расчёт в сервисный слой + очередь задач (Celery/RQ).
+5. Добавить тесты на API и extension-интеграцию.
+
+
+### Telegram виджет не отображается / Bot domain invalid
+Проверьте:
+- приложение открыто по домену, который указан в BotFather (`/setdomain`),
+- используется HTTPS (для локальной разработки используйте tunnel: ngrok/cloudflared),
+- `TELEGRAM_BOT_USERNAME` совпадает с текущим ботом,
+- в блоке "Авторизация" на странице показаны корректные `Telegram bot` и `Auth URL`.
+
 ---
 
 

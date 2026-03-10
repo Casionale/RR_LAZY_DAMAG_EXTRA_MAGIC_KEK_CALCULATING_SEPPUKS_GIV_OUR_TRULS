@@ -215,6 +215,83 @@ def session_status():
         }
     )
 
+def _build_war_order_data(payload: dict):
+    war_id = payload.get("war_id")
+    if war_id in (None, ""):
+        raise ValueError("Поле war_id обязательно")
+
+    try:
+        war_id = int(war_id)
+    except (TypeError, ValueError) as error:
+        raise ValueError("war_id должен быть целым числом") from error
+
+    is_attack_raw = payload.get("is_attack", True)
+    if isinstance(is_attack_raw, bool):
+        is_attack = is_attack_raw
+    else:
+        is_attack = str(is_attack_raw).strip().lower() in {"1", "true", "yes", "да"}
+
+    price_raw = payload.get("price", 1)
+    try:
+        price = float(price_raw)
+    except (TypeError, ValueError) as error:
+        raise ValueError("price должен быть числом") from error
+
+    stop_at = str(payload.get("stop_at", "")).strip()
+    if not stop_at:
+        raise ValueError("Поле stop_at обязательно (формат HH:MM DD.MM.YYYY)")
+
+    limit_raw = payload.get("limit", 30000000)
+    try:
+        limit = int(limit_raw)
+    except (TypeError, ValueError) as error:
+        raise ValueError("limit должен быть целым числом") from error
+
+    is_limit_raw = payload.get("is_limit", True)
+    if isinstance(is_limit_raw, bool):
+        is_limit = is_limit_raw
+    else:
+        is_limit = str(is_limit_raw).strip().lower() in {"1", "true", "yes", "да"}
+
+    return [war_id, is_attack, price, stop_at, limit, is_limit]
+
+
+def _calculate_war_rows(order_data: list, cookies: dict):
+    try:
+        info, dm = Utils.new_main(order_data=order_data, cookies=cookies)
+    except Exception as error:
+        raise RuntimeError(f"Ошибка расчёта: {error}") from error
+
+    war_id, _, price, stop_at, _, _ = order_data
+
+    result = []
+    for member, damage in info.items():
+        calc = Utils.calculate_truls_for_war(
+            damage=damage,
+            id_war=war_id,
+            price=float(price),
+            stop_time=stop_at,
+            name=member,
+        )
+        member_id = next((item.get("id") for item in dm if item.get("name") == member), None)
+        result.append(
+            {
+                "name": member,
+                "id": member_id,
+                "damage": int(calc["damage"]),
+                "sum": Decimal(str(calc["sum"])).quantize(Decimal("1.00")),
+            }
+        )
+
+    return [
+        {
+            **row,
+            "sum": float(row["sum"]),
+            "profile_url": f"https://rivalregions.com/#slide/profile/{row['id']}" if row["id"] else None,
+        }
+        for row in result
+    ]
+
 
 @app.post("/api/calculate/<int:order_id>")
 @require_auth
@@ -249,39 +326,11 @@ def calculate_order(order_id: int):
     ]
 
     try:
-        info, dm = Utils.new_main(order_data=data, cookies=state["cookies"])
-    except Exception as error:
-        return jsonify({"ok": False, "error": f"Ошибка расчёта: {error}"}), 500
+        rows = _calculate_war_rows(data, state["cookies"])
+    except RuntimeError as error:
+        return jsonify({"ok": False, "error": str(error)}), 500
 
-    result = []
-    for member, damage in info.items():
-        calc = Utils.calculate_truls_for_war(
-            damage=damage,
-            id_war=order.url,
-            price=float(order.price),
-            stop_time=order.end_date.strftime("%H:%M %d.%m.%Y"),
-            name=member,
-        )
-        member_id = next((item.get("id") for item in dm if item.get("name") == member), None)
-        result.append(
-            {
-                "name": member,
-                "id": member_id,
-                "damage": int(calc["damage"]),
-                "sum": Decimal(str(calc["sum"])).quantize(Decimal("1.00")),
-            }
-        )
-
-    return jsonify(
-        {
-            "ok": True,
-            "order": _serialize_order(order),
-            "rows": [
-                {**row, "sum": float(row["sum"]), "profile_url": f"https://rivalregions.com/#slide/profile/{row['id']}" if row["id"] else None}
-                for row in result
-            ],
-        }
-    )
+    return jsonify({"ok": True, "order": _serialize_order(order), "rows": rows})
 
 
 @app.post("/api/calculate/<int:order_id>/csv")
@@ -304,6 +353,59 @@ def calculate_order_csv(order_id: int):
     mem = io.BytesIO(output.getvalue().encode("utf-8"))
     mem.seek(0)
     return send_file(mem, mimetype="text/csv", as_attachment=True, download_name=f"payment_{order_id}.csv")
+
+
+
+
+@app.post("/api/war/calculate")
+@require_auth
+def calculate_war():
+    state = store.load()
+    if not state:
+        return jsonify({"ok": False, "error": "Сессия не инициализирована. Импортируйте cookies."}), 400
+
+    payload = request.get_json(silent=True) or {}
+    try:
+        order_data = _build_war_order_data(payload)
+    except ValueError as error:
+        return jsonify({"ok": False, "error": str(error)}), 400
+
+    try:
+        rows = _calculate_war_rows(order_data, state["cookies"])
+    except RuntimeError as error:
+        return jsonify({"ok": False, "error": str(error)}), 500
+
+    return jsonify({"ok": True, "war": {
+        "war_id": order_data[0],
+        "is_attack": order_data[1],
+        "price": order_data[2],
+        "stop_at": order_data[3],
+        "limit": order_data[4],
+        "is_limit": order_data[5],
+    }, "rows": rows})
+
+
+@app.post("/api/war/calculate/csv")
+@require_auth
+def calculate_war_csv():
+    response = calculate_war()
+    if isinstance(response, tuple):
+        return response
+
+    payload = response.get_json()
+    if not payload.get("ok"):
+        return jsonify(payload), 400
+
+    output = io.StringIO()
+    writer = csv.writer(output, delimiter=';')
+    writer.writerow(["Аккаунт", "url", "Дамаг учтён.", "Плата"])
+    for row in payload["rows"]:
+        writer.writerow([row["name"], row.get("profile_url") or "", row["damage"], int(row["sum"])])
+
+    mem = io.BytesIO(output.getvalue().encode("utf-8"))
+    mem.seek(0)
+    war_id = payload.get("war", {}).get("war_id", "war")
+    return send_file(mem, mimetype="text/csv", as_attachment=True, download_name=f"war_payment_{war_id}.csv")
 
 
 @app.get("/api/health")

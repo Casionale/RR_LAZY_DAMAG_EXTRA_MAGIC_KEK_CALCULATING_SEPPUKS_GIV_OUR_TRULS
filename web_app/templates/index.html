@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <title>NS Web Calculator</title>
+  <style>
+    body{font-family:Arial,sans-serif;max-width:980px;margin:20px auto;padding:0 16px}
+    button{margin:4px 0}
+    pre{background:#f4f4f4;padding:12px;overflow:auto;min-height:120px}
+    .box{border:1px solid #ddd;padding:12px;border-radius:8px;margin:10px 0}
+    .hidden{display:none}
+    .small{font-size:12px;color:#555}
+  </style>
+</head>
+<body>
+  <h1>NS Web Calculator</h1>
+
+  <div class="box" id="authBox">
+    <h3>Авторизация</h3>
+    <div id="authState">Проверка...</div>
+
+    {% if tg_bot_username %}
+    <div class="small">Telegram bot: <b>@{{ tg_bot_username }}</b></div>
+    <div class="small">Auth URL: <code>{{ tg_auth_url }}</code></div>
+    <div class="small">Если виджет не появляется: убедитесь, что открыли сайт по домену из BotFather /setdomain и что это HTTPS (не localhost).</div>
+
+    <div id="tgLogin">
+      <script async src="https://telegram.org/js/telegram-widget.js?22"
+              data-telegram-login="{{ tg_bot_username }}"
+              data-size="large"
+              data-auth-url="{{ tg_auth_url }}"
+              data-request-access="write"></script>
+    </div>
+    {% else %}
+    <p>TELEGRAM_BOT_USERNAME не настроен на backend.</p>
+    {% endif %}
+
+    <button id="logoutBtn" class="hidden">Выйти</button>
+  </div>
+
+  <div class="box">
+    <p>1) Авторизуйтесь через Telegram.</p>
+    <p>2) Импортируйте cookies через Firefox extension.</p>
+    <p>3) Выберите заказ и запустите расчёт.</p>
+    <button id="refresh">Обновить</button>
+    <div id="status"></div>
+  </div>
+
+  <ul id="orders"></ul>
+  <pre id="out"></pre>
+
+<script>
+async function fetchJson(url, options={}){
+  const res = await fetch(url, options);
+  const data = await res.json();
+  return {res, data};
+}
+
+async function loadAuth(){
+  const {data} = await fetchJson('/api/auth/me');
+  const state = document.getElementById('authState');
+  const tgLogin = document.getElementById('tgLogin');
+  const logoutBtn = document.getElementById('logoutBtn');
+
+  if (data.authenticated){
+    const u = data.user || {};
+    state.textContent = `✅ Вы вошли как @${u.username || 'unknown'} (${u.first_name || ''})`;
+    if (tgLogin) tgLogin.classList.add('hidden');
+    logoutBtn.classList.remove('hidden');
+  } else {
+    state.textContent = '❌ Не авторизован';
+    if (tgLogin) tgLogin.classList.remove('hidden');
+    logoutBtn.classList.add('hidden');
+  }
+}
+
+async function loadStatus(){
+  const {res, data} = await fetchJson('/api/session/status');
+  const status = document.getElementById('status');
+  if (res.status === 401){
+    status.textContent = 'Нужна авторизация через Telegram';
+    return;
+  }
+  status.textContent = data.connected
+    ? `✅ Сессия активна (${data.updated_at}), загрузил: ${data.loaded_by || 'unknown'}`
+    : '❌ Сессия не загружена';
+}
+
+async function loadOrders(){
+  const {res, data} = await fetchJson('/api/orders');
+  const ul=document.getElementById('orders');
+  ul.innerHTML='';
+
+  if (res.status === 401){
+    const li=document.createElement('li');
+    li.textContent='Авторизуйтесь через Telegram, чтобы увидеть заказы';
+    ul.appendChild(li);
+    return;
+  }
+
+  for (const o of data){
+    const li=document.createElement('li');
+    const b=document.createElement('button');
+    b.textContent=`Рассчитать: ${o.name} (#${o.id})`;
+    b.onclick=async()=>{
+      const rr=await fetchJson(`/api/calculate/${o.id}`,{method:'POST'});
+      document.getElementById('out').textContent=JSON.stringify(rr.data,null,2);
+    };
+    li.appendChild(b);
+    ul.appendChild(li);
+  }
+}
+
+async function logout(){
+  await fetchJson('/api/auth/logout', {method:'POST'});
+  await refreshAll();
+}
+
+async function refreshAll(){
+  await loadAuth();
+  await loadStatus();
+  await loadOrders();
+}
+
+document.getElementById('refresh').onclick=refreshAll;
+document.getElementById('logoutBtn').onclick=logout;
+refreshAll();
+</script>
+</body>
+</html>
